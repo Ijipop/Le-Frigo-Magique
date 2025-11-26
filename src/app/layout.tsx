@@ -55,6 +55,12 @@ export default function RootLayout({
                     </SignUpButton>
                   </SignedOut>
                   <SignedIn>
+                    <Link
+                      href="/dashboard"
+                      className="text-gray-700 hover:text-orange-500 font-medium transition-colors"
+                    >
+                      Tableau de bord
+                    </Link>
                     <UserButton />
                   </SignedIn>
                 </div>
