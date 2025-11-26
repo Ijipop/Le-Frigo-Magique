@@ -5,12 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && prisma migrate deploy && next build",
+    "build:vercel": "prisma generate && node scripts/migrate-deploy.js && next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "migrate:deploy:retry": "node scripts/migrate-deploy.js",
     "seed": "tsx prisma/seed.ts",
     "check-users": "tsx scripts/check-users.ts"
   },

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "prisma generate && node scripts/migrate-deploy-safe.js && next build",
   "installCommand": "npm install"
 }
 
