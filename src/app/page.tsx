@@ -1,7 +1,15 @@
 import Link from 'next/link'
 import { SignedOut, SignUpButton } from '@clerk/nextjs'
+import { auth } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
 
-export default function Home() {
+export default async function Home() {
+  const { userId } = await auth();
+
+  // Rediriger les utilisateurs connectés vers le dashboard
+  if (userId) {
+    redirect("/dashboard");
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50">
       {/* Hero Section */}
