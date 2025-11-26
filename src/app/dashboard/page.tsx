@@ -4,6 +4,7 @@ import GardeManger from "./components/GardeManger";
 import BudgetSelector from "./components/BudgetSelector";
 import CategoryItemSelector from "./components/CategoryItemSelector";
 import AllergiesSelector from "./components/AllergiesSelector";
+import RecipeFinder from "./components/RecipeFinder";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -25,10 +26,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           <BudgetSelector />
           <GardeManger />
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Planification</h2>
-            <p className="text-gray-600 dark:text-gray-300">À venir : Planification de vos repas</p>
-          </div>
+          <RecipeFinder />
         </div>
 
         <div className="grid grid-cols-1 gap-6">
