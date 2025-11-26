@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, ChefHat, ExternalLink, Loader2, ChevronDown, ChevronUp, Check, Plus } from "lucide-react";
+import { Search, ChefHat, ExternalLink, Loader2, ChevronDown, ChevronUp, Check, Plus, X, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -29,6 +29,35 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
   const [displayCount, setDisplayCount] = useState(5); // Afficher 5 recettes par défaut
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set()); // URLs des recettes sélectionnées
   const [addingToWeek, setAddingToWeek] = useState<Set<string>>(new Set()); // URLs en cours d'ajout
+  
+  // Filtres de recherche
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
+  
+  // Catégories de filtres disponibles
+  const filterCategories = {
+    type: [
+      { id: "proteine", label: "Riche en protéines", icon: "💪" },
+      { id: "dessert", label: "Dessert", icon: "🍰" },
+      { id: "smoothie", label: "Smoothie", icon: "🥤" },
+      { id: "soupe", label: "Soupe", icon: "🍲" },
+      { id: "salade", label: "Salade", icon: "🥗" },
+      { id: "petit-dejeuner", label: "Petit-déjeuner", icon: "🥞" },
+      { id: "collation", label: "Collation", icon: "🍪" },
+    ],
+    regime: [
+      { id: "vegetarien", label: "Végétarien", icon: "🌱" },
+      { id: "vegan", label: "Végétalien", icon: "🌿" },
+      { id: "sans-gluten", label: "Sans gluten", icon: "🌾" },
+      { id: "keto", label: "Keto", icon: "🥑" },
+      { id: "paleo", label: "Paléo", icon: "🦴" },
+    ],
+    caracteristiques: [
+      { id: "rapide", label: "Rapide (< 30 min)", icon: "⚡" },
+      { id: "economique", label: "Économique", icon: "💰" },
+      { id: "sante", label: "Santé", icon: "💚" },
+      { id: "comfort", label: "Réconfort", icon: "🍛" },
+    ],
+  };
 
   // Charger les données utilisateur au montage
   useEffect(() => {
@@ -70,12 +99,19 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
         }
       }
 
-      // Charger les aliments préférés
+      // Charger les préférences (aliments préférés + régimes pour filtres)
       const preferencesResponse = await fetch("/api/user/preferences");
       if (preferencesResponse.ok) {
         const prefsData = await preferencesResponse.json();
         if (prefsData.data?.alimentsPreferes && Array.isArray(prefsData.data.alimentsPreferes)) {
           setPreferredItems(prefsData.data.alimentsPreferes);
+        }
+        // Charger les préférences de régime pour les filtres automatiques
+        if (prefsData.data?.vegetarien) {
+          setSelectedFilters(prev => new Set([...prev, "vegetarien"]));
+        }
+        if (prefsData.data?.sansGluten) {
+          setSelectedFilters(prev => new Set([...prev, "sans-gluten"]));
         }
       }
 
@@ -111,7 +147,7 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
         }
       }
 
-      // Charger les préférences (aliments préférés + allergies)
+      // Charger les préférences (aliments préférés + allergies + régimes)
       const preferencesResponse = await fetch("/api/user/preferences");
       if (preferencesResponse.ok) {
         const prefsData = await preferencesResponse.json();
@@ -152,11 +188,45 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
       // Construire la liste des ingrédients avec les données fraîchement chargées
       // Convertir les IDs d'aliments préférés en noms
       const preferredItemNames = getFoodNames(currentPreferredItems);
-      const allIngredients = [...preferredItemNames, ...currentPantryItems];
+      let allIngredients = [...preferredItemNames, ...currentPantryItems];
+      
+      // Si le filtre "proteine" est sélectionné, prioriser les aliments riches en protéines
+      if (selectedFilters.has("proteine")) {
+        // Aliments riches en protéines (IDs et noms)
+        const proteinRichIds = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "37", "47", "48", "50", "74", "75"];
+        const proteinRichNames = [
+          "poulet", "bœuf", "porc", "saumon", "dinde", "bacon", "steak", "côtelettes", "thon", "crevettes",
+          "œufs", "oeufs", "haricots", "lentilles", "pois chiches", "noix", "amandes",
+          "fromage", "yogourt", "fromage cottage", "mozzarella"
+        ];
+        
+        // Identifier les aliments riches en protéines dans les préférences
+        const proteinPreferredItems = currentPreferredItems
+          .filter(id => proteinRichIds.includes(id))
+          .map(id => getFoodNames([id])[0])
+          .filter(Boolean);
+        
+        // Identifier les aliments riches en protéines dans le garde-manger
+        const proteinPantryItems = currentPantryItems.filter(item => 
+          proteinRichNames.some(proteinName => 
+            item.toLowerCase().includes(proteinName.toLowerCase())
+          )
+        );
+        
+        // Réorganiser : protéines en premier, puis le reste
+        const proteinItems = [...proteinPreferredItems, ...proteinPantryItems];
+        const otherItems = allIngredients.filter(item => 
+          !proteinItems.includes(item)
+        );
+        
+        allIngredients = [...proteinItems, ...otherItems];
+        
+        console.log("💪 [Filtre Protéine] Aliments riches en protéines identifiés:", proteinItems);
+      }
       
       console.log("📋 Ingrédients préférés:", preferredItemNames);
       console.log("📋 Articles du garde-manger:", currentPantryItems);
-      console.log("📋 Tous les ingrédients:", allIngredients);
+      console.log("📋 Tous les ingrédients (ordre final):", allIngredients);
       console.log("🚫 Allergies à exclure:", currentAllergies);
       
       if (allIngredients.length === 0) {
@@ -172,8 +242,11 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
       console.log("🔍 Recherche avec ingrédients:", ingredientNames);
       console.log("🚫 Exclusion des allergies:", allergiesParam);
 
+      // Construire les paramètres de filtres
+      const filtersParam = Array.from(selectedFilters).join(",");
+      
       const response = await fetch(
-        `/api/web-recipes?ingredients=${encodeURIComponent(ingredientNames)}&budget=${currentBudget || ""}&allergies=${encodeURIComponent(allergiesParam)}`
+        `/api/web-recipes?ingredients=${encodeURIComponent(ingredientNames)}&budget=${currentBudget || ""}&allergies=${encodeURIComponent(allergiesParam)}&filters=${encodeURIComponent(filtersParam)}`
       );
 
       // Vérifier le Content-Type avant de parser
@@ -319,6 +392,121 @@ export default function RecipeFinder({ autoSearch = false }: RecipeFinderProps) 
       >
         Recherchez des recettes québécoises basées sur vos aliments préférés, votre garde-manger et votre budget.
       </motion.p>
+
+      {/* Filtres de recherche */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.25 }}
+        className="mb-4"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtres de recherche</span>
+          {selectedFilters.size > 0 && (
+            <button
+              onClick={() => setSelectedFilters(new Set())}
+              className="ml-auto text-xs text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {/* Type de plat */}
+        <div className="mb-3">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Type de plat</p>
+          <div className="flex flex-wrap gap-2">
+            {filterCategories.type.map((filter) => (
+              <motion.button
+                key={filter.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newFilters = new Set(selectedFilters);
+                  if (newFilters.has(filter.id)) {
+                    newFilters.delete(filter.id);
+                  } else {
+                    newFilters.add(filter.id);
+                  }
+                  setSelectedFilters(newFilters);
+                }}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  selectedFilters.has(filter.id)
+                    ? "bg-orange-500 text-white shadow-md"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                <span>{filter.icon}</span>
+                {filter.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Régime alimentaire */}
+        <div className="mb-3">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Régime alimentaire</p>
+          <div className="flex flex-wrap gap-2">
+            {filterCategories.regime.map((filter) => (
+              <motion.button
+                key={filter.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newFilters = new Set(selectedFilters);
+                  if (newFilters.has(filter.id)) {
+                    newFilters.delete(filter.id);
+                  } else {
+                    newFilters.add(filter.id);
+                  }
+                  setSelectedFilters(newFilters);
+                }}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  selectedFilters.has(filter.id)
+                    ? "bg-orange-500 text-white shadow-md"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                <span>{filter.icon}</span>
+                {filter.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Caractéristiques */}
+        <div className="mb-4">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Caractéristiques</p>
+          <div className="flex flex-wrap gap-2">
+            {filterCategories.caracteristiques.map((filter) => (
+              <motion.button
+                key={filter.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newFilters = new Set(selectedFilters);
+                  if (newFilters.has(filter.id)) {
+                    newFilters.delete(filter.id);
+                  } else {
+                    newFilters.add(filter.id);
+                  }
+                  setSelectedFilters(newFilters);
+                }}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  selectedFilters.has(filter.id)
+                    ? "bg-orange-500 text-white shadow-md"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                <span>{filter.icon}</span>
+                {filter.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
