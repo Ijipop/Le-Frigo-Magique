@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ShoppingCart, Plus, X, Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ShoppingCart, Plus, X, Search, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -131,6 +131,29 @@ export default function CategoryItemSelector() {
   const [newItemName, setNewItemName] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("autres");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
+
+  // Charger les préférences au montage
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        setLoadingPreferences(true);
+        const response = await fetch("/api/user/preferences");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.alimentsPreferes && Array.isArray(data.data.alimentsPreferes)) {
+            setSelectedItems(new Set(data.data.alimentsPreferes));
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des préférences:", error);
+      } finally {
+        setLoadingPreferences(false);
+      }
+    };
+    loadPreferences();
+  }, []);
 
   const currentItems = POPULAR_ITEMS[selectedCategory] || [];
 
@@ -184,6 +207,36 @@ export default function CategoryItemSelector() {
     }
   };
 
+  const handleSavePreferences = async () => {
+    try {
+      setSaving(true);
+      const response = await fetch("/api/user/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          alimentsPreferes: Array.from(selectedItems),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("Aliments préférés sauvegardés avec succès !");
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Erreur lors de la sauvegarde");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      toast.error("Une erreur est survenue lors de la sauvegarde");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetPreferences = () => {
+    setSelectedItems(new Set());
+    toast.success("Préférences réinitialisées");
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -196,9 +249,9 @@ export default function CategoryItemSelector() {
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="flex items-center justify-between mb-4"
+        className="mb-4"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-4">
           <motion.div
             whileHover={{ scale: 1.1, rotate: -5 }}
             className="p-2 rounded-lg bg-gradient-to-br from-rose-400 to-rose-500"
@@ -206,19 +259,62 @@ export default function CategoryItemSelector() {
             <ShoppingCart className="w-5 h-5 text-white" />
           </motion.div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Articles populaires
+            Aliments préférés
           </h2>
         </div>
-        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-          <Button
-            onClick={() => setAddModalOpen(true)}
-            variant="outline"
-            size="sm"
+
+        {/* Boutons d'action - Optimisés pour mobile */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <motion.div 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            className="flex-1 sm:flex-initial"
           >
-            <Plus className="w-4 h-4 mr-1" />
-            Ajouter
-          </Button>
-        </motion.div>
+            <Button
+              onClick={() => setAddModalOpen(true)}
+              variant="primary"
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Ajouter un aliment
+            </Button>
+          </motion.div>
+          
+          <motion.div 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            className="flex-1 sm:flex-initial"
+          >
+            <Button
+              onClick={handleSavePreferences}
+              disabled={saving || loadingPreferences}
+              variant="primary"
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <Save className="w-4 h-4 mr-1" />
+              {saving ? "Sauvegarde..." : "Sauvegarder"}
+            </Button>
+          </motion.div>
+          
+          <motion.div 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }}
+            className="flex-1 sm:flex-initial"
+          >
+            <Button
+              onClick={handleResetPreferences}
+              disabled={saving || loadingPreferences || selectedItems.size === 0}
+              variant="danger"
+              size="sm"
+              className="w-full sm:w-auto"
+            >
+              <RotateCcw className="w-4 h-4 mr-1" />
+              Réinitialiser
+            </Button>
+          </motion.div>
+        </div>
       </motion.div>
 
       {/* Catégories */}
@@ -278,7 +374,7 @@ export default function CategoryItemSelector() {
           paddingRight: '1.75rem' // Plus d'espace pour la scrollbar
         }}
       >
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {filteredItems.length === 0 ? (
             <motion.p
               key="empty"
