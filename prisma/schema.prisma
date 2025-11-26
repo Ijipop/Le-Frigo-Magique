@@ -138,3 +138,11 @@ model RecetteFavorite {
 
   @@unique([utilisateurId, recetteId])
 }
+
+model WebSearchCache {
+  id          Int      @id @default(autoincrement())
+  query       String   @unique
+  resultsJson String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
