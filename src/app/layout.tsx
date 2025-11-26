@@ -34,7 +34,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ClerkProvider>
+        <ClerkProvider
+          afterSignInUrl="/dashboard"
+          afterSignUpUrl="/dashboard"
+        >
           <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
               <div className="flex h-16 items-center justify-between">
@@ -55,6 +58,12 @@ export default function RootLayout({
                     </SignUpButton>
                   </SignedOut>
                   <SignedIn>
+                    <Link
+                      href="/dashboard"
+                      className="text-gray-700 hover:text-orange-500 font-medium transition-colors"
+                    >
+                      Tableau de bord
+                    </Link>
                     <UserButton />
                   </SignedIn>
                 </div>
