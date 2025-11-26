@@ -31,6 +31,12 @@ frigomagique/
 │   │   │   └── page.tsx         # Page d'inscription
 │   │   ├── signout/
 │   │   │   └── page.tsx         # Page de déconnexion
+│   │   ├── dashboard/
+│   │   │   └── page.tsx         # Tableau de bord utilisateur
+│   │   ├── api/
+│   │   │   └── webhooks/
+│   │   │       └── clerk/
+│   │   │           └── route.ts # Webhook Clerk pour synchronisation
 │   │   ├── generated/
 │   │   │   └── prisma/          # Client Prisma généré
 │   │   └── globals.css          # Styles globaux
@@ -105,9 +111,42 @@ frigomagique/
 - ✅ Header sticky avec backdrop blur
 - ✅ Logo cliquable "Frigo Magique" avec gradient
 - ✅ Boutons de connexion/inscription pour les utilisateurs non connectés
+- ✅ Lien "Tableau de bord" pour les utilisateurs connectés
 - ✅ `UserButton` de Clerk pour les utilisateurs connectés
 
-### 3. Interface Utilisateur
+#### Redirection Automatique
+- ✅ Redirection automatique vers `/dashboard` après connexion
+- ✅ Redirection automatique vers `/dashboard` après inscription
+- ✅ Configuration dans `ClerkProvider` avec `afterSignInUrl` et `afterSignUpUrl`
+- ✅ Configuration dans les pages `/signin` et `/signup` avec les props correspondantes
+
+### 3. Dashboard Utilisateur
+
+#### Page Dashboard (`/dashboard`)
+- ✅ Page protégée accessible uniquement aux utilisateurs connectés
+- ✅ Vérification d'authentification avec `auth()` de Clerk
+- ✅ Redirection automatique vers `/signin` si non connecté
+- ✅ Design cohérent avec le reste du site (gradients orange/rose/amber)
+- ✅ Placeholders pour les fonctionnalités futures :
+  - Section Garde-manger
+  - Section Budget
+  - Section Planification
+- ✅ Structure prête pour l'ajout des fonctionnalités
+
+### 4. Webhooks Clerk
+
+#### Configuration Webhook
+- ✅ Route API `/api/webhooks/clerk` pour recevoir les événements Clerk
+- ✅ Utilisation de `svix` pour la vérification des signatures
+- ✅ Gestion des événements :
+  - `user.created` - Nouvel utilisateur créé
+  - `user.updated` - Utilisateur mis à jour
+  - `user.deleted` - Utilisateur supprimé
+- ✅ Vérification des headers Svix (svix-id, svix-timestamp, svix-signature)
+- ✅ Runtime Node.js configuré pour le webhook
+- ✅ Structure prête pour intégrer Prisma (synchronisation utilisateurs)
+
+### 5. Interface Utilisateur
 
 #### Page d'Accueil
 - ✅ Design moderne et attrayant avec palette de couleurs chaleureuses
@@ -143,7 +182,7 @@ frigomagique/
 - ✅ Design responsive
 - ✅ Typographie claire et lisible
 
-### 4. Configuration Technique
+### 6. Configuration Technique
 
 #### TypeScript
 - ✅ Configuration TypeScript optimisée pour Next.js 16
@@ -165,7 +204,7 @@ frigomagique/
 - ✅ Routes publiques configurées
 - ✅ Matcher configuré pour exclure les fichiers statiques
 
-### 5. Corrections et Optimisations
+### 7. Corrections et Optimisations
 
 #### Problèmes Résolus
 - ✅ Correction de l'import Prisma Client (chemin vers `src/app/generated/prisma/client`)
@@ -174,6 +213,9 @@ frigomagique/
 - ✅ Correction de la structure du layout (html/body au niveau racine)
 - ✅ Harmonisation des couleurs sur toutes les pages
 - ✅ Correction des exports par défaut dans les pages
+- ✅ Correction de l'utilisation de `headers()` avec `await` (Next.js App Router)
+- ✅ Correction de l'utilisation de `auth()` avec `await` (Next.js App Router)
+- ✅ Correction des props de redirection Clerk (configuration dans ClerkProvider)
 
 #### Optimisations pour Vercel
 - ✅ Configuration TypeScript optimisée pour le build Vercel
@@ -209,6 +251,7 @@ frigomagique/
 - `@prisma/client`: ^7.0.1
 - `prisma`: ^6.19.0
 - `dotenv`: ^17.2.3
+- `svix`: ^1.81.0 (pour les webhooks Clerk)
 
 ### Développement
 - `typescript`: ^5
@@ -229,6 +272,7 @@ frigomagique/
 1. `DATABASE_URL` - URL de connexion à la base de données PostgreSQL
 2. `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Clé publique Clerk
 3. `CLERK_SECRET_KEY` - Clé secrète Clerk
+4. `CLERK_WEBHOOK_SECRET` - Secret pour vérifier les webhooks Clerk (optionnel mais recommandé)
 
 #### Étapes de Déploiement
 1. ✅ Connexion du repository Git à Vercel
@@ -264,6 +308,8 @@ frigomagique/
 - Clerk fonctionne en mode "keyless" en développement local
 - Les clés doivent être configurées sur Vercel pour la production
 - Le middleware protège automatiquement toutes les routes sauf les routes publiques
+- Redirection automatique vers `/dashboard` après connexion/inscription
+- Le dashboard est protégé et redirige vers `/signin` si non connecté
 
 ### Build et Déploiement
 - Le build local fonctionne correctement
@@ -275,11 +321,12 @@ frigomagique/
 ## 🎯 Prochaines Étapes Suggérées
 
 1. **Fonctionnalités à Implémenter**:
-   - Dashboard utilisateur
-   - Gestion du garde-manger
-   - Planification de repas
-   - Génération de listes d'épicerie
+   - ✅ Dashboard utilisateur (structure créée, fonctionnalités à ajouter)
+   - Gestion du garde-manger (CRUD des articles)
+   - Planification de repas (création et modification)
+   - Génération de listes d'épicerie (automatique basée sur les repas)
    - Intégration avec des APIs de recettes
+   - Synchronisation des utilisateurs Clerk avec Prisma via webhook
 
 2. **Améliorations**:
    - Tests unitaires et d'intégration
@@ -301,6 +348,8 @@ frigomagique/
 - `src/app/signin/page.tsx` - Page de connexion
 - `src/app/signup/page.tsx` - Page d'inscription
 - `src/app/signout/page.tsx` - Page de déconnexion
+- `src/app/dashboard/page.tsx` - Tableau de bord utilisateur
+- `src/app/api/webhooks/clerk/route.ts` - Webhook Clerk pour synchronisation
 - `src/middleware.ts` - Middleware Clerk
 - `lib/prisma.ts` - Instance Prisma
 - `prisma.config.ts` - Configuration Prisma
@@ -328,5 +377,10 @@ frigomagique/
 
 **Date de dernière mise à jour**: 2025-01-XX
 **Version**: 0.1.0
-**Statut**: Prêt pour le déploiement sur Vercel
+**Statut**: 
+- ✅ Déployé sur Vercel
+- ✅ Authentification complète avec Clerk
+- ✅ Dashboard utilisateur créé
+- ✅ Webhooks Clerk configurés
+- 🔄 Fonctionnalités métier à développer (garde-manger, planification, etc.)
 
