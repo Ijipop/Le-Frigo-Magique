@@ -281,7 +281,7 @@ export default async function Home() {
                 ))}
               </div>
               <p className="text-gray-700 dark:text-gray-300 mb-6 italic">
-                "J'ai un budget serré de 80€ par semaine pour 4 personnes. Frigo Magique me propose toujours des recettes délicieuses qui respectent mon budget. C'est génial !"
+                "J'ai un budget serré de 80$ par semaine pour 4 personnes. Frigo Magique me propose toujours des recettes délicieuses qui respectent mon budget. C'est génial !"
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white font-bold">
@@ -321,7 +321,7 @@ export default async function Home() {
                 ))}
               </div>
               <p className="text-gray-700 dark:text-gray-300 mb-6 italic">
-                "Je suis végétarienne et j'ai un budget de 60€ par semaine. L'app me propose des recettes variées et équilibrées qui respectent mon budget. Parfait !"
+                "Je suis végétarienne et j'ai un budget de 60$ par semaine. L'app me propose des recettes variées et équilibrées qui respectent mon budget. Parfait !"
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-white font-bold">
@@ -355,7 +355,7 @@ export default async function Home() {
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Gratuit</h3>
                 <div className="mb-6">
-                  <span className="text-5xl font-bold text-gray-900 dark:text-white">0€</span>
+                  <span className="text-5xl font-bold text-gray-900 dark:text-white">0$</span>
                   <span className="text-gray-600 dark:text-gray-400">/mois</span>
                 </div>
                 <SignedOut>
