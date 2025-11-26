@@ -10,22 +10,22 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 px-6 py-10">
+    <main className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-rose-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-6 py-10">
       <div className="mx-auto max-w-7xl">
         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
           Tableau de bord
         </h1>
-        <p className="text-gray-600 mb-8">Bienvenue ! Gérez votre planification de repas et votre budget.</p>
+        <p className="text-gray-600 dark:text-gray-300 mb-8">Bienvenue ! Gérez votre planification de repas et votre budget.</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <GardeManger />
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Budget</h2>
-            <p className="text-gray-600">À venir : Suivi de votre budget hebdomadaire</p>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Budget</h2>
+            <p className="text-gray-600 dark:text-gray-300">À venir : Suivi de votre budget hebdomadaire</p>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Planification</h2>
-            <p className="text-gray-600">À venir : Planification de vos repas</p>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Planification</h2>
+            <p className="text-gray-600 dark:text-gray-300">À venir : Planification de vos repas</p>
           </div>
         </div>
       </div>
