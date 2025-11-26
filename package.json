@@ -9,14 +9,15 @@
     "lint": "eslint",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "check-users": "tsx scripts/check-users.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.35.5",
     "@prisma/client": "^7.0.1",
     "dotenv": "^17.2.3",
     "next": "16.0.4",
-    "prisma": "^6.19.0",
+    "prisma": "^7.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "svix": "^1.81.0"

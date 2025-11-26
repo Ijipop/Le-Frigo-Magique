@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import GardeManger from "./components/GardeManger";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -16,12 +17,8 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-gray-600 mb-8">Bienvenue ! Gérez votre planification de repas et votre budget.</p>
         
-        {/* Placeholder pour les fonctionnalités futures */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Garde-manger</h2>
-            <p className="text-gray-600">À venir : Gestion de votre garde-manger</p>
-          </div>
+          <GardeManger />
           <div className="bg-white rounded-2xl p-6 shadow-lg">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Budget</h2>
             <p className="text-gray-600">À venir : Suivi de votre budget hebdomadaire</p>
