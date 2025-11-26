@@ -8,10 +8,7 @@ export const createArticleSchema = z.object({
     .max(100, "Le nom ne peut pas dépasser 100 caractères")
     .trim(),
   quantite: z
-    .number({
-      required_error: "La quantité est requise",
-      invalid_type_error: "La quantité doit être un nombre",
-    })
+    .number("La quantité doit être un nombre")
     .positive("La quantité doit être positive")
     .max(1000000, "La quantité est trop élevée"),
   unite: z
@@ -31,9 +28,7 @@ export const updateArticleSchema = z.object({
     .trim()
     .optional(),
   quantite: z
-    .number({
-      invalid_type_error: "La quantité doit être un nombre",
-    })
+    .number("La quantité doit être un nombre")
     .positive("La quantité doit être positive")
     .max(1000000, "La quantité est trop élevée")
     .optional(),
