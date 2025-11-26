@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Plus, Trash2, ShoppingCart } from "lucide-react";
+import Modal from "../../../components/ui/modal";
+import Button from "../../../components/ui/button";
 
 interface Article {
   id: string;
@@ -13,6 +17,11 @@ export default function GardeManger() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; articleId: string | null; articleNom: string }>({
+    isOpen: false,
+    articleId: null,
+    articleNom: "",
+  });
   const [formData, setFormData] = useState({
     nom: "",
     quantite: "",
@@ -61,34 +70,57 @@ export default function GardeManger() {
       if (response.ok) {
         setFormData({ nom: "", quantite: "", unite: "" });
         setShowForm(false);
+        toast.success("Article ajouté avec succès !");
         fetchArticles();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Erreur lors de l'ajout");
       }
     } catch (error) {
       console.error("Erreur lors de l'ajout:", error);
+      toast.error("Une erreur est survenue");
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet article ?")) return;
+  const handleDeleteClick = (id: string, nom: string) => {
+    setDeleteModal({ isOpen: true, articleId: id, articleNom: nom });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.articleId) return;
 
     try {
-      const response = await fetch(`/api/garde-manger/${id}`, {
+      const response = await fetch(`/api/garde-manger/${deleteModal.articleId}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
+        toast.success("Article supprimé avec succès !");
         fetchArticles();
+        setDeleteModal({ isOpen: false, articleId: null, articleNom: "" });
+      } else {
+        toast.error("Erreur lors de la suppression");
       }
     } catch (error) {
       console.error("Erreur lors de la suppression:", error);
+      toast.error("Une erreur est survenue");
     }
   };
 
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Garde-manger</h2>
-        <p className="text-gray-600 dark:text-gray-300">Chargement...</p>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
+            <ShoppingCart className="w-5 h-5 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Garde-manger</h2>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -96,13 +128,20 @@ export default function GardeManger() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Garde-manger</h2>
-        <button
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
+            <ShoppingCart className="w-5 h-5 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Garde-manger</h2>
+        </div>
+        <Button
           onClick={() => setShowForm(!showForm)}
-          className="rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 px-4 py-2 text-white font-semibold text-sm transition-all hover:scale-105"
+          size="sm"
+          variant={showForm ? "secondary" : "primary"}
         >
-          {showForm ? "Annuler" : "+ Ajouter"}
-        </button>
+          <Plus className="w-4 h-4 mr-1 inline" />
+          {showForm ? "Annuler" : "Ajouter"}
+        </Button>
       </div>
 
       {showForm && (
@@ -134,12 +173,10 @@ export default function GardeManger() {
                 className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400"
               />
             </div>
-            <button
-              type="submit"
-              className="w-full rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 px-4 py-2 text-white font-semibold transition-all hover:scale-105"
-            >
-              Ajouter
-            </button>
+            <Button type="submit" className="w-full" size="md">
+              <Plus className="w-4 h-4 mr-2 inline" />
+              Ajouter l'article
+            </Button>
           </div>
         </form>
       )}
@@ -160,15 +197,32 @@ export default function GardeManger() {
                 </span>
               </div>
               <button
-                onClick={() => handleDelete(article.id)}
-                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium text-sm"
+                onClick={() => handleDeleteClick(article.id, article.nom)}
+                className="p-2 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                aria-label="Supprimer"
               >
-                Supprimer
+                <Trash2 className="w-4 h-4" />
               </button>
             </li>
           ))}
         </ul>
       )}
+
+      {/* Modal de confirmation de suppression */}
+      <Modal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, articleId: null, articleNom: "" })}
+        title="Supprimer l'article"
+        onConfirm={handleDeleteConfirm}
+        variant="danger"
+        confirmText="Supprimer"
+        cancelText="Annuler"
+      >
+        <p className="text-gray-600 dark:text-gray-300">
+          Êtes-vous sûr de vouloir supprimer <strong>{deleteModal.articleNom}</strong> ?
+          Cette action est irréversible.
+        </p>
+      </Modal>
     </div>
   );
 }
