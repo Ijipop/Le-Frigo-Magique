@@ -1,6 +1,8 @@
 import { prisma } from "./prisma";
 
-const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 heures
+// Durée de cache en millisecondes (null = infini, les données sont conservées indéfiniment)
+// Pour activer l'expiration après 24h, utilisez: const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+const CACHE_DURATION_MS: number | null = null; // null = conservation infinie
 
 export interface CachedResult {
   title: string;
@@ -27,14 +29,16 @@ export async function getCachedResults(
       return null;
     }
 
-    // Vérifier si le cache est expiré
-    const cacheAge = Date.now() - cached.updatedAt.getTime();
-    if (cacheAge > CACHE_DURATION_MS) {
-      // Supprimer le cache expiré
-      await prisma.webSearchCache.delete({
-        where: { query },
-      });
-      return null;
+    // Vérifier si le cache est expiré (seulement si CACHE_DURATION_MS est défini)
+    if (CACHE_DURATION_MS !== null) {
+      const cacheAge = Date.now() - cached.updatedAt.getTime();
+      if (cacheAge > CACHE_DURATION_MS) {
+        // Supprimer le cache expiré
+        await prisma.webSearchCache.delete({
+          where: { query },
+        });
+        return null;
+      }
     }
 
     // Parser les résultats JSON
