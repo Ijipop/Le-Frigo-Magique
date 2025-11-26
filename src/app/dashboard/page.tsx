@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import GardeManger from "./components/GardeManger";
 import BudgetSelector from "./components/BudgetSelector";
 import CategoryItemSelector from "./components/CategoryItemSelector";
+import AllergiesSelector from "./components/AllergiesSelector";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -31,6 +32,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6">
+          <AllergiesSelector />
           <CategoryItemSelector />
         </div>
       </div>

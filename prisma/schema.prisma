@@ -33,6 +33,7 @@ model Preferences {
   sansGluten        Boolean      @default(false)
   allergenes        String?      // JSON ou texte libre
   cuisinesFavorites String?      // ex: "italien, asiatique"
+  alimentsPreferes  String?      // JSON array des IDs d'aliments préférés
 }
 
 model ArticleGardeManger {
