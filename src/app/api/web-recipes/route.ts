@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     const ingredientsParam = searchParams.get("ingredients") || "";
     const budgetParam = searchParams.get("budget") || "";
     const allergiesParam = searchParams.get("allergies") || "";
+    const filtersParam = searchParams.get("filters") || "";
 
     const ingredientsArray = ingredientsParam
       .split(",")
@@ -19,16 +20,23 @@ export async function GET(req: Request) {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const filtersArray = filtersParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     // Normaliser et trier les ingrédients pour une clé de cache cohérente
     const normalizedIngredients = ingredientsArray.sort().join(",");
     const normalizedAllergies = allergiesArray.sort().join(",");
+    const normalizedFilters = filtersArray.sort().join(",");
     
-    // Construire la clé de cache normalisée (incluant les allergies pour éviter les résultats non filtrés)
-    const cacheKey = `ingredients:${normalizedIngredients}-budget:${budgetParam}-allergies:${normalizedAllergies}`;
+    // Construire la clé de cache normalisée (incluant les allergies et filtres)
+    const cacheKey = `ingredients:${normalizedIngredients}-budget:${budgetParam}-allergies:${normalizedAllergies}-filters:${normalizedFilters}`;
     
     console.log("🔑 [API] Clé de cache:", cacheKey);
     console.log("🔑 [API] Ingrédients reçus:", ingredientsParam);
     console.log("🔑 [API] Ingrédients normalisés:", normalizedIngredients);
+    console.log("🔑 [API] Filtres reçus:", filtersArray);
 
     // 1️⃣ — Vérifier le cache (conservation infinie)
     const cached = await getCachedResults(cacheKey);
@@ -81,6 +89,32 @@ export async function GET(req: Request) {
       })) ?? [];
     };
 
+    // Mapper les filtres vers des termes de recherche Google
+    const filterTerms: { [key: string]: string } = {
+      "proteine": "riche en protéines",
+      "dessert": "dessert",
+      "smoothie": "smoothie",
+      "soupe": "soupe",
+      "salade": "salade",
+      "petit-dejeuner": "petit-déjeuner",
+      "collation": "collation",
+      "vegetarien": "végétarien",
+      "vegan": "végétalien",
+      "sans-gluten": "sans gluten",
+      "keto": "keto",
+      "paleo": "paléo",
+      "rapide": "rapide moins de 30 minutes",
+      "economique": "économique pas cher",
+      "sante": "santé",
+      "comfort": "réconfort",
+    };
+
+    // Construire les termes de filtres pour la requête
+    const filterQueryTerms = filtersArray
+      .map(filterId => filterTerms[filterId])
+      .filter(Boolean)
+      .join(" ");
+
     if (ingredientsArray.length > 0) {
       // Stratégie 1 : Recherche avec les 2-3 premiers ingrédients (priorité aux aliments préférés)
       const nombreIngredients = Math.min(ingredientsArray.length, 3);
@@ -88,6 +122,9 @@ export async function GET(req: Request) {
       let q1 = `recette ${ingredientsPrincipaux.join(" ")}`;
       if (budgetParam) {
         q1 += " économique pas cher";
+      }
+      if (filterQueryTerms) {
+        q1 += ` ${filterQueryTerms}`;
       }
       
       console.log("🔎 [API] Recherche principale:", q1);
@@ -108,6 +145,9 @@ export async function GET(req: Request) {
           if (budgetParam) {
             q2 += " économique pas cher";
           }
+          if (filterQueryTerms) {
+            q2 += ` ${filterQueryTerms}`;
+          }
           
           console.log("🔎 [API] Recherche secondaire:", q2);
           const results2 = await performGoogleSearch(q2);
@@ -125,6 +165,9 @@ export async function GET(req: Request) {
       let q = "recette québécoise";
       if (budgetParam) {
         q += " économique pas cher";
+      }
+      if (filterQueryTerms) {
+        q += ` ${filterQueryTerms}`;
       }
       const results = await performGoogleSearch(q);
       allItems.push(...results);
