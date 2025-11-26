@@ -29,18 +29,18 @@ export default async function Home() {
       <section className="relative overflow-hidden px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="text-center">
-            <h1 className="text-5xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl md:text-7xl">
+            <h1 className="text-5xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl md:text-7xl animate-in fade-in slide-in-from-bottom-4 duration-700">
               <span className="bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
                 Frigo Magique
               </span>
             </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-xl leading-8 text-gray-600 dark:text-gray-300 sm:text-2xl">
+            <p className="mx-auto mt-6 max-w-2xl text-xl leading-8 text-gray-600 dark:text-gray-300 sm:text-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
               Définissez votre budget, recevez des recettes personnalisées pour la semaine, et découvrez les meilleurs rabais
             </p>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-gray-500 dark:text-gray-400">
+            <p className="mx-auto mt-4 max-w-xl text-lg text-gray-500 dark:text-gray-400 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
               L'application intelligente qui vous aide à bien manger tout en respectant votre budget hebdomadaire
             </p>
-            <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
+            <div className="mt-10 flex items-center justify-center gap-4 flex-wrap animate-in fade-in slide-in-from-bottom-4 duration-700 delay-400">
               <SignedOut>
                 <SignUpButton mode="modal">
                   <button className="rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 px-8 py-4 text-lg font-semibold text-white shadow-xl transition-all hover:scale-105 hover:shadow-2xl flex items-center gap-2">
@@ -58,7 +58,7 @@ export default async function Home() {
             </div>
             
             {/* Trust badges */}
-            <div className="mt-12 flex items-center justify-center gap-8 flex-wrap opacity-60">
+            <div className="mt-12 flex items-center justify-center gap-8 flex-wrap opacity-60 animate-in fade-in duration-700 delay-600">
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Shield className="w-4 h-4" />
                 <span>100% Sécurisé</span>
@@ -122,7 +122,7 @@ export default async function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="relative">
+            <div className="relative group hover:-translate-y-2 transition-transform duration-300">
               <div className="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-gradient-to-r from-orange-500 to-rose-500 flex items-center justify-center text-white font-bold text-xl">
                 1
               </div>
@@ -139,7 +139,7 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="relative">
+            <div className="relative group hover:-translate-y-2 transition-transform duration-300">
               <div className="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 flex items-center justify-center text-white font-bold text-xl">
                 2
               </div>
@@ -156,7 +156,7 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="relative">
+            <div className="relative group hover:-translate-y-2 transition-transform duration-300">
               <div className="absolute -top-4 -left-4 w-12 h-12 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center text-white font-bold text-xl">
                 3
               </div>
@@ -193,7 +193,7 @@ export default async function Home() {
 
           <div className="mt-20 grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3">
             {/* Feature 1 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-orange-500 group-hover:scale-110 transition-transform">
                 <Calendar className="h-6 w-6 text-white" />
               </div>
@@ -204,7 +204,7 @@ export default async function Home() {
             </div>
 
             {/* Feature 2 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-500 group-hover:scale-110 transition-transform">
                 <DollarSign className="h-6 w-6 text-white" />
               </div>
@@ -215,7 +215,7 @@ export default async function Home() {
             </div>
 
             {/* Feature 3 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-rose-500 group-hover:scale-110 transition-transform">
                 <ShoppingCart className="h-6 w-6 text-white" />
               </div>
@@ -226,7 +226,7 @@ export default async function Home() {
             </div>
 
             {/* Feature 4 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 group-hover:scale-110 transition-transform">
                 <CheckCircle2 className="h-6 w-6 text-white" />
               </div>
@@ -237,7 +237,7 @@ export default async function Home() {
             </div>
 
             {/* Feature 5 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 group-hover:scale-110 transition-transform">
                 <Heart className="h-6 w-6 text-white" />
               </div>
@@ -248,7 +248,7 @@ export default async function Home() {
             </div>
 
             {/* Feature 6 */}
-            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl border border-gray-100 dark:border-gray-700">
+            <div className="group rounded-2xl bg-white dark:bg-gray-800 p-8 shadow-lg dark:shadow-gray-900/50 transition-all hover:scale-105 hover:shadow-xl hover:-translate-y-1 border border-gray-100 dark:border-gray-700">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-pink-500 group-hover:scale-110 transition-transform">
                 <Zap className="h-6 w-6 text-white" />
               </div>

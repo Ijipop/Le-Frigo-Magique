@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, ShoppingCart } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
 
@@ -126,26 +127,49 @@ export default function GardeManger() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
-      <div className="flex items-center justify-between mb-4">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50"
+    >
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="flex items-center justify-between mb-4"
+      >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
+          <motion.div
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500"
+          >
             <ShoppingCart className="w-5 h-5 text-white" />
-          </div>
+          </motion.div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Garde-manger</h2>
         </div>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          size="sm"
-          variant={showForm ? "secondary" : "primary"}
-        >
-          <Plus className="w-4 h-4 mr-1 inline" />
-          {showForm ? "Annuler" : "Ajouter"}
-        </Button>
-      </div>
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            size="sm"
+            variant={showForm ? "secondary" : "primary"}
+          >
+            <Plus className="w-4 h-4 mr-1 inline" />
+            {showForm ? "Annuler" : "Ajouter"}
+          </Button>
+        </motion.div>
+      </motion.div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+      <AnimatePresence>
+        {showForm && (
+          <motion.form
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            onSubmit={handleSubmit}
+            className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg overflow-hidden"
+          >
           <div className="space-y-3">
             <input
               type="text"
@@ -178,35 +202,60 @@ export default function GardeManger() {
               Ajouter l'article
             </Button>
           </div>
-        </form>
-      )}
+        </motion.form>
+        )}
+      </AnimatePresence>
 
-      {articles.length === 0 ? (
-        <p className="text-gray-600 dark:text-gray-300">Aucun article dans votre garde-manger.</p>
-      ) : (
-        <ul className="space-y-2">
-          {articles.map((article) => (
-            <li
-              key={article.id}
-              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <div className="flex-1">
-                <span className="font-medium text-gray-900 dark:text-white">{article.nom}</span>
-                <span className="ml-2 text-gray-600 dark:text-gray-300">
-                  {article.quantite} {article.unite || ""}
-                </span>
-              </div>
-              <button
-                onClick={() => handleDeleteClick(article.id, article.nom)}
-                className="p-2 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                aria-label="Supprimer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AnimatePresence>
+        {articles.length === 0 ? (
+          <motion.p
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="text-gray-600 dark:text-gray-300"
+          >
+            Aucun article dans votre garde-manger.
+          </motion.p>
+        ) : (
+          <motion.ul
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="space-y-2"
+          >
+            <AnimatePresence>
+              {articles.map((article, index) => (
+                <motion.li
+                  key={article.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20, scale: 0.8 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900 dark:text-white">{article.nom}</span>
+                    <span className="ml-2 text-gray-600 dark:text-gray-300">
+                      {article.quantite} {article.unite || ""}
+                    </span>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDeleteClick(article.id, article.nom)}
+                    className="p-2 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </motion.button>
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </motion.ul>
+        )}
+      </AnimatePresence>
 
       {/* Modal de confirmation de suppression */}
       <Modal
@@ -223,7 +272,7 @@ export default function GardeManger() {
           Cette action est irréversible.
         </p>
       </Modal>
-    </div>
+    </motion.div>
   );
 }
 
