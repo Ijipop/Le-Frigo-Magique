@@ -26,8 +26,11 @@ export async function getCachedResults(
     });
 
     if (!cached) {
+      console.log("🔍 [Cache] Aucun cache trouvé pour:", query.substring(0, 100));
       return null;
     }
+    
+    console.log("✅ [Cache] Cache trouvé pour:", query.substring(0, 100));
 
     // Vérifier si le cache est expiré (seulement si CACHE_DURATION_MS est défini)
     if (CACHE_DURATION_MS !== null) {
@@ -44,6 +47,7 @@ export async function getCachedResults(
     // Parser les résultats JSON
     try {
       const results = JSON.parse(cached.resultsJson) as CachedResult[];
+      console.log(`📦 [Cache] ${results.length} résultat(s) parsés depuis le cache`);
       return results;
     } catch (error) {
       console.error("Erreur lors du parsing du cache:", error);
@@ -78,6 +82,8 @@ export async function saveCache(
         resultsJson,
       },
     });
+    
+    console.log(`💾 [Cache] ${results.length} résultat(s) sauvegardés dans le cache pour:`, query.substring(0, 100));
   } catch (error) {
     console.error("Erreur lors de la sauvegarde du cache:", error);
     // Ne pas faire échouer la requête si le cache échoue
