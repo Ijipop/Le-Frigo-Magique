@@ -19,7 +19,6 @@ export async function getCachedResults(
   query: string
 ): Promise<CachedResult[] | null> {
   try {
-    // @ts-expect-error - webSearchCache est généré par Prisma mais TypeScript peut ne pas le reconnaître immédiatement
     const cached = await prisma.webSearchCache.findUnique({
       where: { query },
     });
@@ -32,7 +31,6 @@ export async function getCachedResults(
     const cacheAge = Date.now() - cached.updatedAt.getTime();
     if (cacheAge > CACHE_DURATION_MS) {
       // Supprimer le cache expiré
-      // @ts-expect-error - webSearchCache est généré par Prisma
       await prisma.webSearchCache.delete({
         where: { query },
       });
@@ -65,7 +63,6 @@ export async function saveCache(
   try {
     const resultsJson = JSON.stringify(results);
 
-    // @ts-expect-error - webSearchCache est généré par Prisma
     await prisma.webSearchCache.upsert({
       where: { query },
       update: {
