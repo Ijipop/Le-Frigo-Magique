@@ -39,11 +39,13 @@ export async function GET(req: Request) {
     console.log("🔑 [API] Filtres reçus:", filtersArray);
 
     // 1️⃣ — Vérifier le cache (conservation infinie)
+    console.log("🔍 [API] Vérification du cache...");
     const cached = await getCachedResults(cacheKey);
     if (cached && cached.length > 0) {
-      console.log(`✅ [API] ${cached.length} résultat(s) récupérés du cache`);
+      console.log(`✅ [API] ${cached.length} résultat(s) récupérés du cache - AUCUN appel Google nécessaire`);
       return NextResponse.json({ items: cached, cached: true });
     }
+    console.log("❌ [API] Cache non trouvé - Appel à Google nécessaire");
 
     if (!process.env.GOOGLE_API_KEY || !process.env.GOOGLE_CX) {
       console.error("❌ GOOGLE_API_KEY ou GOOGLE_CX manquants");
