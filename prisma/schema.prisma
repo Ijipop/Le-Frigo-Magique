@@ -36,6 +36,8 @@ model Preferences {
   cuisinesFavorites String? // ex: "italien, asiatique"
   alimentsPreferes  String? // JSON array des IDs d'aliments préférés
   codePostal        String? // Code postal pour les circulaires (ex: H1Y3C3)
+  isPremium         Boolean @default(false) // Statut premium de l'utilisateur
+  premiumUntil      DateTime? // Date d'expiration de l'abonnement premium
 }
 
 model ArticleGardeManger {
