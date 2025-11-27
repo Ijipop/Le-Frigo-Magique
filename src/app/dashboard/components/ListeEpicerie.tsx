@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
@@ -21,6 +21,25 @@ interface ListeEpicerie {
   coutTotal: number | null;
 }
 
+interface DealMatch {
+  ingredient: string;
+  matchedItem: {
+    id: string;
+    name: string;
+    current_price: number | null;
+    original_price: number | null;
+  };
+  savings: number | null;
+}
+
+interface FlyerResult {
+  flyer: {
+    id: number;
+    merchant: string;
+  };
+  matches: DealMatch[];
+}
+
 export default function ListeEpicerie() {
   const [liste, setListe] = useState<ListeEpicerie | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,10 +50,12 @@ export default function ListeEpicerie() {
     ligneId: null,
     ligneNom: "",
   });
+  const [dealsResults, setDealsResults] = useState<{ results: FlyerResult[] } | null>(null);
+  const [loadingDeals, setLoadingDeals] = useState(false);
 
   const [formData, setFormData] = useState({
     nom: "",
-    quantite: "",
+    quantite: "1",
     unite: "",
     prixEstime: "",
   });
@@ -49,6 +70,15 @@ export default function ListeEpicerie() {
   useEffect(() => {
     fetchListe();
   }, []);
+
+  // Charger les rabais quand la liste change
+  useEffect(() => {
+    if (liste && liste.lignes.length > 0) {
+      fetchDeals();
+    } else {
+      setDealsResults(null);
+    }
+  }, [liste]);
 
   const fetchListe = async () => {
     try {
@@ -71,7 +101,7 @@ export default function ListeEpicerie() {
   const resetForm = () => {
     setFormData({
       nom: "",
-      quantite: "",
+      quantite: "1",
       unite: "",
       prixEstime: "",
     });
@@ -84,12 +114,43 @@ export default function ListeEpicerie() {
       e.preventDefault();
     }
 
+    // Validation côté client
+    if (!formData.nom.trim()) {
+      toast.error("Le nom de l'item est requis");
+      return;
+    }
+
+    const quantiteStr = formData.quantite.trim();
+    if (!quantiteStr) {
+      toast.error("La quantité est requise");
+      return;
+    }
+
+    const quantite = parseFloat(quantiteStr);
+    if (isNaN(quantite)) {
+      toast.error("La quantité doit être un nombre valide");
+      return;
+    }
+
+    if (quantite <= 0) {
+      toast.error("La quantité doit être supérieure à 0");
+      return;
+    }
+
+    let prixEstime: number | null = null;
+    if (formData.prixEstime && formData.prixEstime.trim()) {
+      const parsed = parseFloat(formData.prixEstime);
+      if (!isNaN(parsed) && parsed >= 0) {
+        prixEstime = parsed;
+      }
+    }
+
     try {
       const data = {
         nom: formData.nom.trim(),
-        quantite: parseFloat(formData.quantite),
+        quantite,
         unite: formData.unite || null,
-        prixEstime: formData.prixEstime ? parseFloat(formData.prixEstime) : null,
+        prixEstime,
       };
 
       if (editingId) {
@@ -120,7 +181,9 @@ export default function ListeEpicerie() {
           fetchListe();
           resetForm();
         } else {
-          toast.error("Erreur lors de l'ajout");
+          const errorData = await response.json();
+          console.error("Erreur API:", errorData);
+          toast.error(errorData.details?.[0]?.message || errorData.error || "Erreur lors de l'ajout");
         }
       }
     } catch (error) {
@@ -173,11 +236,107 @@ export default function ListeEpicerie() {
     }
   };
 
+  const fetchDeals = async () => {
+    try {
+      setLoadingDeals(true);
+      const response = await fetch("/api/flyers/search-deals");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          setDealsResults({ results: data.results });
+        } else {
+          setDealsResults(null);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des rabais:", error);
+    } finally {
+      setLoadingDeals(false);
+    }
+  };
+
+  // Trouver le meilleur prix (en rabais) et les détails pour un ingrédient
+  const getBestDealForIngredient = (ingredientName: string): { 
+    price: number | null; 
+    originalPrice: number | null;
+    savings: number | null;
+    merchant: string | null;
+    productName: string | null;
+  } => {
+    if (!dealsResults || !dealsResults.results) {
+      return { price: null, originalPrice: null, savings: null, merchant: null, productName: null };
+    }
+    
+    // Normaliser le nom de l'ingrédient pour le matching
+    const normalizedIngredient = ingredientName.toLowerCase().trim();
+    
+    let bestDeal: { 
+      price: number | null; 
+      originalPrice: number | null;
+      savings: number | null;
+      merchant: string | null;
+      productName: string | null;
+    } = { price: null, originalPrice: null, savings: null, merchant: null, productName: null };
+    
+    // Parcourir tous les résultats de flyers
+    for (const result of dealsResults.results) {
+      for (const match of result.matches) {
+        // Vérifier si le match correspond à l'ingrédient
+        const normalizedMatch = match.ingredient.toLowerCase().trim();
+        if (normalizedMatch === normalizedIngredient || 
+            normalizedIngredient.includes(normalizedMatch) ||
+            normalizedMatch.includes(normalizedIngredient)) {
+          // Utiliser le prix en rabais (current_price) s'il est disponible
+          const currentPrice = match.matchedItem.current_price;
+          if (currentPrice && (!bestDeal.price || currentPrice < bestDeal.price)) {
+            bestDeal = {
+              price: currentPrice,
+              originalPrice: match.matchedItem.original_price || match.estimatedOriginalPrice || null,
+              savings: match.savings,
+              merchant: result.flyer.merchant,
+              productName: match.matchedItem.name || null,
+            };
+          }
+        }
+      }
+    }
+    
+    return bestDeal;
+  };
+
+  // Trouver le meilleur prix (en rabais) pour un ingrédient (pour compatibilité)
+  const getBestPriceForIngredient = (ingredientName: string): number | null => {
+    return getBestDealForIngredient(ingredientName).price;
+  };
+
   const calculerTotal = () => {
-    if (!liste) return 0;
-    return liste.lignes.reduce((total, ligne) => {
-      return total + (ligne.prixEstime || 0);
-    }, 0);
+    if (!liste) return { total: 0, totalAvecRabais: 0, economie: 0 };
+    
+    let total = 0;
+    let totalAvecRabais = 0;
+    
+    liste.lignes.forEach((ligne) => {
+      // Calculer le prix total pour cette ligne (prix unitaire * quantité)
+      const prixUnitaireEstime = ligne.prixEstime || 0;
+      const quantite = ligne.quantite || 1;
+      const prixTotalEstime = prixUnitaireEstime * quantite;
+      total += prixTotalEstime;
+      
+      // Chercher un prix en rabais pour cet ingrédient
+      const prixUnitaireRabais = getBestPriceForIngredient(ligne.nom);
+      if (prixUnitaireRabais !== null) {
+        // Multiplier le prix unitaire en rabais par la quantité
+        const prixTotalRabais = prixUnitaireRabais * quantite;
+        totalAvecRabais += prixTotalRabais;
+      } else {
+        // Si pas de rabais trouvé, utiliser le prix estimé total
+        totalAvecRabais += prixTotalEstime;
+      }
+    });
+    
+    const economie = total - totalAvecRabais;
+    
+    return { total, totalAvecRabais, economie };
   };
 
   if (loading) {
@@ -216,18 +375,52 @@ export default function ListeEpicerie() {
         </Button>
       </div>
 
-      {liste && liste.lignes.length > 0 && (
-        <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Total estimé:
-            </span>
-            <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
-              {calculerTotal().toFixed(2)}$
-            </span>
+      {liste && liste.lignes.length > 0 && (() => {
+        const { total, totalAvecRabais, economie } = calculerTotal();
+        const hasDeals = dealsResults && dealsResults.results.length > 0;
+        
+        return (
+          <div className="mb-4 space-y-2">
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {hasDeals ? "Total avec rabais:" : "Total estimé:"}
+                </span>
+                <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
+                  {totalAvecRabais.toFixed(2)}$
+                </span>
+              </div>
+            </div>
+            {hasDeals && economie > 0 && (
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Économie totale:
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-lg font-bold text-green-500 dark:text-green-400">
+                      -{economie.toFixed(2)}$
+                    </span>
+                    {total > 0 && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
+                        {total.toFixed(2)}$
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            {loadingDeals && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-1">
+                Recherche de rabais en cours...
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <AnimatePresence>
         {liste && liste.lignes.length === 0 ? (
@@ -250,49 +443,98 @@ export default function ListeEpicerie() {
             exit={{ opacity: 0 }}
             className="space-y-2 max-h-[400px] overflow-y-auto pr-2"
           >
-            {liste?.lignes.map((ligne, index) => (
-              <motion.div
-                key={ligne.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.2, delay: index * 0.05 }}
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-1">
-                    {ligne.nom}
-                  </h4>
-                  <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-                    <span>
-                      {ligne.quantite} {ligne.unite || "unité"}
-                    </span>
-                    {ligne.prixEstime && (
-                      <span className="flex items-center gap-1">
-                        <DollarSign className="w-3 h-3" />
-                        {ligne.prixEstime.toFixed(2)}$
+            {liste?.lignes.map((ligne, index) => {
+              const deal = getBestDealForIngredient(ligne.nom);
+              const hasDeal = deal.price !== null;
+              const quantite = ligne.quantite || 1;
+              const prixTotalRabais = hasDeal ? deal.price! * quantite : null;
+              const prixTotalEstime = ligne.prixEstime ? ligne.prixEstime * quantite : null;
+              
+              return (
+                <motion.div
+                  key={ligne.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                  className={`flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border ${
+                    hasDeal 
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+                      : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        {ligne.nom}
+                      </h4>
+                      {hasDeal && (
+                        <div className="flex items-center gap-1">
+                          <Sparkles className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                          <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                            En rabais
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                      <span>
+                        {ligne.quantite} {ligne.unite || "unité"}
                       </span>
+                      {hasDeal && prixTotalRabais !== null ? (
+                        <div className="flex items-center gap-2">
+                          {deal.originalPrice && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
+                              {(deal.originalPrice * quantite).toFixed(2)}$
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
+                            <DollarSign className="w-3 h-3" />
+                            {prixTotalRabais.toFixed(2)}$
+                          </span>
+                          {deal.savings && deal.savings > 0 && (
+                            <span className="text-xs text-green-500 font-medium">
+                              (-{(deal.savings * quantite).toFixed(2)}$)
+                            </span>
+                          )}
+                        </div>
+                      ) : prixTotalEstime !== null ? (
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" />
+                          {prixTotalEstime.toFixed(2)}$
+                        </span>
+                      ) : null}
+                    </div>
+                    {hasDeal && deal.merchant && (
+                      <div className="text-xs text-green-600 dark:text-green-400 mt-1 space-y-0.5">
+                        <div>Chez {deal.merchant}</div>
+                        {deal.productName && (
+                          <div className="text-gray-500 dark:text-gray-400 italic">
+                            {deal.productName}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleEdit(ligne)}
-                    className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                    aria-label="Modifier"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteClick(ligne.id, ligne.nom)}
-                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    aria-label="Supprimer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEdit(ligne)}
+                      className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                      aria-label="Modifier"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(ligne.id, ligne.nom)}
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      aria-label="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
@@ -317,6 +559,12 @@ export default function ListeEpicerie() {
                 type="text"
                 value={formData.nom}
                 onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleConfirm();
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                 required
                 placeholder="ex: Lait, Pain, Tomates..."
@@ -331,9 +579,15 @@ export default function ListeEpicerie() {
                 <input
                   type="number"
                   step="0.01"
-                  min="0"
+                  min="0.01"
                   value={formData.quantite}
                   onChange={(e) => setFormData({ ...formData, quantite: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleConfirm();
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                   required
                   placeholder="1"
@@ -369,6 +623,12 @@ export default function ListeEpicerie() {
                 min="0"
                 value={formData.prixEstime}
                 onChange={(e) => setFormData({ ...formData, prixEstime: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleConfirm();
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
                 placeholder="0.00"
               />

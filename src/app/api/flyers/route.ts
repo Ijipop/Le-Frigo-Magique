@@ -15,6 +15,7 @@ const GROCERY_KEYWORDS = [
   "pharmaprix", // Parfois considéré comme épicerie
   "jean coutu", // Parfois a des produits alimentaires
   "uniprix",
+  "familiprix", // Pharmacie
   "costco",
   "adonis",
   "iga extra",
@@ -23,10 +24,14 @@ const GROCERY_KEYWORDS = [
   "épicerie",
   "grocery",
   "supermarché",
+  "marché tradition", // Chaîne d'épiceries
+  "marche tradition",
+  "market tradition",
 ];
 
 function isGroceryFlyer(flyer: any) {
-  // Chercher dans plusieurs champs possibles
+  // Le champ merchant est directement une string dans l'API Flipp
+  const merchant = (flyer?.merchant || "").toLowerCase();
   const name = (
     flyer?.merchant_name || 
     flyer?.name || 
@@ -36,21 +41,46 @@ function isGroceryFlyer(flyer: any) {
     ""
   ).toLowerCase();
   
+  // Exclure les épiceries trop niche
+  const excludedMerchants = ["lian tai", "liantai", "marché lian tai"];
+  if (excludedMerchants.some(excluded => merchant.includes(excluded) || name.includes(excluded))) {
+    return false;
+  }
+  
   const category = (
     flyer?.category ||
     flyer?.merchant?.category ||
     flyer?.type ||
+    flyer?.categories_csv || // Flipp utilise categories_csv
     ""
   ).toLowerCase();
   
-  // Vérifier si c'est une épicerie par nom ou catégorie
-  const nameMatch = GROCERY_KEYWORDS.some((kw) => name.includes(kw));
+  // Vérifier le champ merchant directement
+  // Pour "Marché Tradition", vérifier si "marche" ET "tradition" sont présents
+  const merchantMatch = GROCERY_KEYWORDS.some((kw) => {
+    if (kw.includes("tradition")) {
+      // Pour "marché tradition", vérifier que les deux mots sont présents
+      return merchant.includes("marche") && merchant.includes("tradition");
+    }
+    return merchant.includes(kw);
+  });
+  
+  const nameMatch = GROCERY_KEYWORDS.some((kw) => {
+    if (kw.includes("tradition")) {
+      // Pour "marché tradition", vérifier que les deux mots sont présents
+      return name.includes("marche") && name.includes("tradition");
+    }
+    return name.includes(kw);
+  });
+  
   const categoryMatch = category.includes("grocery") || 
+                        category.includes("groceries") ||
                         category.includes("épicerie") || 
                         category.includes("supermarket") ||
-                        category.includes("food");
+                        category.includes("food") ||
+                        category.includes("pharmacy"); // Inclure les pharmacies
   
-  return nameMatch || categoryMatch;
+  return merchantMatch || nameMatch || categoryMatch;
 }
 
 export async function GET(req: Request) {
@@ -104,8 +134,8 @@ export async function GET(req: Request) {
 
     const groceryFlyers = filteredFlyers.map((flyer) => ({
       id: flyer.id || flyer.flyer_id,
-      merchant: flyer.merchant_name || flyer.name || flyer.merchant?.name,
-      title: flyer.name || flyer.title || flyer.merchant_name,
+      merchant: flyer.merchant || flyer.merchant_name || flyer.name || flyer.merchant?.name,
+      title: flyer.name || flyer.title || flyer.merchant_name || flyer.merchant,
       valid_from: flyer.valid_from || flyer.start_date,
       valid_to: flyer.valid_to || flyer.end_date,
       // parfois `grid_thumbnail_url` ou autre

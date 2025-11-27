@@ -8,7 +8,7 @@ import ListeEpicerie from "./components/ListeEpicerie";
 import CategoryItemSelector from "./components/CategoryItemSelector";
 import RecipeSearchContainer from "./components/RecipeSearchContainer";
 import RecettesSemaine from "./components/RecettesSemaine";
-import { ChefHat, Settings } from "lucide-react";
+import { ChefHat, Settings, ShoppingBag } from "lucide-react";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -32,19 +32,24 @@ export default async function DashboardPage() {
       icon: <ChefHat className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <RecettesSemaine />
-            <FlyersSettings />
-          </div>
+          <RecettesSemaine />
 
           <div>
             <RecipeSearchContainer />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <GardeManger />
-            <ListeEpicerie />
-          </div>
+          <GardeManger />
+        </div>
+      ),
+    },
+    {
+      id: "circulaire",
+      label: "Circulaire",
+      icon: <ShoppingBag className="w-4 h-4" />,
+      content: (
+        <div className="space-y-6">
+          <ListeEpicerie />
+          <FlyersSettings />
         </div>
       ),
     },
