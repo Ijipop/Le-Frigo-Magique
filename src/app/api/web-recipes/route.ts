@@ -106,15 +106,24 @@ export async function GET(req: Request) {
       "salade": "salade",
       "petit-dejeuner": "petit-déjeuner",
       "collation": "collation",
+      "pates": "pâtes",
+      "pizza": "pizza",
+      "grille": "au grill",
       "vegetarien": "végétarien",
       "vegan": "végétalien",
       "sans-gluten": "sans gluten",
       "keto": "keto",
       "paleo": "paléo",
+      "halal": "halal",
+      "casher": "casher",
+      "pescetarien": "pescétarien",
       "rapide": "rapide moins de 30 minutes",
       "economique": "économique pas cher",
       "sante": "santé",
       "comfort": "réconfort",
+      "facile": "facile simple",
+      "gourmet": "gourmet raffiné",
+      "sans-cuisson": "sans cuisson cru",
     };
     
     // Les filtres sont déjà normalisés en minuscules, donc on peut les utiliser directement
@@ -171,16 +180,20 @@ export async function GET(req: Request) {
         }
       }
     } else {
-      // Si pas d'ingrédients, recherche générique
-      let q = "recette québécoise";
+      // Si pas d'ingrédients, recherche générique avec filtres
+      let q = "recette";
+      if (filterQueryTerms) {
+        q += ` ${filterQueryTerms}`;
+      } else {
+        q += " québécoise";
+      }
       if (budgetParam) {
         q += " économique pas cher";
       }
-      if (filterQueryTerms) {
-        q += ` ${filterQueryTerms}`;
-      }
+      console.log("🔎 [API] Recherche générique (sans ingrédients):", q);
       const results = await performGoogleSearch(q);
       allItems.push(...results);
+      console.log(`✅ [API] Recherche générique: ${results.length} résultat(s)`);
     }
 
     console.log(`📊 [API] ${ingredientsArray.length} ingrédient(s) total, ${allItems.length} recette(s) unique(s) trouvée(s)`);

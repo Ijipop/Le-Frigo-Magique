@@ -149,7 +149,7 @@ export default function AllergiesSelector() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50 mb-6"
+      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50"
     >
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -163,17 +163,13 @@ export default function AllergiesSelector() {
         >
           <AlertTriangle className="w-5 h-5 text-white" />
         </motion.div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           Allergies / Intolérances
         </h2>
       </motion.div>
 
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Sélectionnez vos allergies et intolérances pour que nous puissions adapter nos suggestions de recettes.
-      </p>
-
-      {/* Menu déroulant */}
-      <div className="mb-3">
+      {/* Menu déroulant et bouton d'ajout en ligne */}
+      <div className="flex gap-2 mb-3">
         <select
           onChange={(e) => {
             if (e.target.value) {
@@ -181,33 +177,24 @@ export default function AllergiesSelector() {
               e.target.value = ""; // Reset le select
             }
           }}
-          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-base"
+          className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
         >
-          <option value="">Sélectionner une allergie/intolérance...</option>
+          <option value="">Sélectionner...</option>
           {COMMON_ALLERGIES.map((allergy) => (
             <option key={allergy.id} value={allergy.id}>
               {allergy.nom}
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Bouton d'ajout - Ergonomique pour mobile */}
-      <motion.div 
-        whileHover={{ scale: 1.02 }} 
-        whileTap={{ scale: 0.98 }}
-        className="mb-4"
-      >
         <Button
           onClick={() => setAddModalOpen(true)}
-          variant="primary"
-          size="md"
-          className="w-full sm:w-auto"
+          variant="outline"
+          size="sm"
+          className="whitespace-nowrap"
         >
-          <Plus className="w-4 h-4 mr-2" />
-          Ajouter une allergie personnalisée
+          <Plus className="w-4 h-4" />
         </Button>
-      </motion.div>
+      </div>
 
       {/* Liste des allergies sélectionnées */}
       {selectedAllergies.size > 0 && (
@@ -260,10 +247,10 @@ export default function AllergiesSelector() {
           disabled={saving}
           variant="primary"
           size="sm"
-          className="w-full sm:w-auto"
+          className="w-full"
         >
           <Save className="w-4 h-4 mr-1" />
-          {saving ? "Sauvegarde..." : "Sauvegarder les allergies"}
+          {saving ? "Sauvegarde..." : "Sauvegarder"}
         </Button>
       </motion.div>
 
