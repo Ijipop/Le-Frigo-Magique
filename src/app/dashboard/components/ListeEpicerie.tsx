@@ -30,6 +30,8 @@ interface DealMatch {
     original_price: number | null;
   };
   savings: number | null;
+  estimatedOriginalPrice?: number;
+  isEstimated?: boolean;
 }
 
 interface FlyerResult {
