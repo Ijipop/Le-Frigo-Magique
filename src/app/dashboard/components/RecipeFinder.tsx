@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChefHat, ExternalLink, Loader2, ChevronDown, ChevronUp, Check, Plus } from "lucide-react";
+import { ChefHat, ExternalLink, Loader2, ChevronDown, ChevronUp, Check, Plus, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -23,10 +23,13 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
   const [displayCount, setDisplayCount] = useState(5); // Afficher 5 recettes par défaut
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set()); // URLs des recettes sélectionnées
   const [addingToWeek, setAddingToWeek] = useState<Set<string>>(new Set()); // URLs en cours d'ajout
+  const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set()); // URLs des recettes favorites
+  const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set()); // URLs en cours d'ajout aux favoris
 
   // Charger les recettes déjà ajoutées au montage
   useEffect(() => {
     loadExistingRecettes();
+    loadExistingFavorites();
   }, []);
 
   // Charger les recettes déjà ajoutées pour marquer celles qui sont déjà sélectionnées
@@ -43,6 +46,23 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
       }
     } catch (error) {
       console.error("Erreur lors du chargement des recettes existantes:", error);
+    }
+  };
+
+  // Charger les recettes favorites
+  const loadExistingFavorites = async () => {
+    try {
+      const response = await fetch("/api/recettes-favorites");
+      if (response.ok) {
+        const result = await response.json();
+        const favoritesData = result.data || [];
+        if (Array.isArray(favoritesData) && favoritesData.length > 0) {
+          const urls = favoritesData.map((r: { url: string }) => r.url);
+          setFavoriteRecipes(new Set(urls));
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des favoris:", error);
     }
   };
 
@@ -88,12 +108,73 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
     }
   };
 
+  const handleToggleFavorite = async (recipe: Recipe) => {
+    if (addingToFavorites.has(recipe.url)) {
+      return; // Déjà en cours
+    }
+
+    const isFavorite = favoriteRecipes.has(recipe.url);
+
+    try {
+      setAddingToFavorites(new Set([...addingToFavorites, recipe.url]));
+
+      if (isFavorite) {
+        // Retirer des favoris
+        const response = await fetch(`/api/recettes-favorites?url=${encodeURIComponent(recipe.url)}`, {
+          method: "DELETE",
+        });
+
+        if (response.ok) {
+          toast.success(`"${recipe.title}" retirée des favoris`);
+          setFavoriteRecipes(new Set([...favoriteRecipes].filter(url => url !== recipe.url)));
+          // Déclencher un événement pour rafraîchir le composant Favoris
+          window.dispatchEvent(new CustomEvent("favoris-updated"));
+        } else {
+          toast.error("Erreur lors de la suppression des favoris");
+        }
+      } else {
+        // Ajouter aux favoris
+        const response = await fetch("/api/recettes-favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            titre: recipe.title,
+            url: recipe.url,
+            image: recipe.image,
+            snippet: recipe.snippet,
+            source: recipe.source,
+          }),
+        });
+
+        if (response.ok) {
+          toast.success(`"${recipe.title}" ajoutée aux favoris !`);
+          setFavoriteRecipes(new Set([...favoriteRecipes, recipe.url]));
+          // Déclencher un événement pour rafraîchir le composant Favoris
+          window.dispatchEvent(new CustomEvent("favoris-updated"));
+        } else {
+          const error = await response.json();
+          if (response.status === 409) {
+            toast.info("Cette recette est déjà dans vos favoris");
+            setFavoriteRecipes(new Set([...favoriteRecipes, recipe.url]));
+          } else {
+            toast.error(error.error || "Erreur lors de l'ajout aux favoris");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors de la gestion des favoris:", error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setAddingToFavorites(new Set([...addingToFavorites].filter(url => url !== recipe.url)));
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50"
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50 overflow-hidden"
     >
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -167,11 +248,13 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
             </div>
             
             {/* Liste des recettes */}
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-2">
+            <div className="space-y-2.5 max-h-[500px] overflow-y-auto overflow-x-hidden pr-3 pl-1">
               <AnimatePresence>
                 {recipes.slice(0, displayCount).map((recipe, index) => {
                   const isAdding = addingToWeek.has(recipe.url);
                   const isAdded = selectedRecipes.has(recipe.url);
+                  const isFavorite = favoriteRecipes.has(recipe.url);
+                  const isAddingToFavorites = addingToFavorites.has(recipe.url);
                   
                   return (
                     <motion.div
@@ -180,7 +263,7 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
-                      whileHover={{ scale: 1.01, x: 4 }}
+                      whileHover={{ scale: 1.02 }}
                       className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group"
                     >
                       {/* Miniature */}
@@ -232,6 +315,25 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                             {recipe.source}
                           </span>
                           <div className="flex items-center gap-2">
+                            <motion.button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleFavorite(recipe);
+                              }}
+                              disabled={isAddingToFavorites}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isFavorite
+                                  ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                              }`}
+                              title={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                            >
+                              {isAddingToFavorites ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Heart className={`w-4 h-4 ${isFavorite ? "fill-current" : ""}`} />
+                              )}
+                            </motion.button>
                             <motion.button
                               onClick={(e) => {
                                 e.stopPropagation();

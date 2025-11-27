@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import Modal from "../../../components/ui/modal";
+import { getFoodNames } from "../../../../lib/utils/foodItems";
 
 const COMMON_ALLERGIES = [
   { id: "gluten", nom: "Gluten" },
@@ -395,11 +396,31 @@ export default function QuickSettings() {
             </span>
           </div>
           {selectedFavorites.size > 0 ? (
-            <div className="px-3 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg">
-              <p className="text-xs text-rose-700 dark:text-rose-400 font-medium">
+            <motion.button
+              onClick={() => {
+                // Déclencher la recherche par aliments favoris
+                window.dispatchEvent(new CustomEvent('searchByFavorites', {
+                  detail: { favorites: Array.from(selectedFavorites) }
+                }));
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="w-full px-3 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer text-left"
+            >
+              <p className="text-xs text-rose-700 dark:text-rose-400 font-medium mb-1">
                 {selectedFavorites.size} aliment{selectedFavorites.size > 1 ? "s" : ""} sélectionné{selectedFavorites.size > 1 ? "s" : ""}
               </p>
-            </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {getFoodNames(Array.from(selectedFavorites)).map((foodName, index) => (
+                  <span
+                    key={index}
+                    className="inline-block px-2 py-0.5 text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 rounded-full"
+                  >
+                    {foodName}
+                  </span>
+                ))}
+              </div>
+            </motion.button>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Configurez vos aliments préférés dans la section dédiée ci-dessous

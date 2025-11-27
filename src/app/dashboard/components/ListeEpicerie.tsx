@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
@@ -54,6 +54,7 @@ export default function ListeEpicerie() {
   });
   const [dealsResults, setDealsResults] = useState<{ results: FlyerResult[] } | null>(null);
   const [loadingDeals, setLoadingDeals] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     nom: "",
@@ -257,28 +258,27 @@ export default function ListeEpicerie() {
     }
   };
 
-  // Trouver le meilleur prix (en rabais) et les détails pour un ingrédient
-  const getBestDealForIngredient = (ingredientName: string): { 
-    price: number | null; 
+  // Trouver tous les deals pour un ingrédient, groupés par épicerie
+  const getAllDealsForIngredient = (ingredientName: string): Array<{
+    price: number;
     originalPrice: number | null;
     savings: number | null;
-    merchant: string | null;
-    productName: string | null;
-  } => {
+    merchant: string;
+    productName: string;
+  }> => {
     if (!dealsResults || !dealsResults.results) {
-      return { price: null, originalPrice: null, savings: null, merchant: null, productName: null };
+      return [];
     }
     
     // Normaliser le nom de l'ingrédient pour le matching
     const normalizedIngredient = ingredientName.toLowerCase().trim();
-    
-    let bestDeal: { 
-      price: number | null; 
+    const allDeals: Array<{
+      price: number;
       originalPrice: number | null;
       savings: number | null;
-      merchant: string | null;
-      productName: string | null;
-    } = { price: null, originalPrice: null, savings: null, merchant: null, productName: null };
+      merchant: string;
+      productName: string;
+    }> = [];
     
     // Parcourir tous les résultats de flyers
     for (const result of dealsResults.results) {
@@ -290,20 +290,45 @@ export default function ListeEpicerie() {
             normalizedMatch.includes(normalizedIngredient)) {
           // Utiliser le prix en rabais (current_price) s'il est disponible
           const currentPrice = match.matchedItem.current_price;
-          if (currentPrice && (!bestDeal.price || currentPrice < bestDeal.price)) {
-            bestDeal = {
+          if (currentPrice) {
+            allDeals.push({
               price: currentPrice,
               originalPrice: match.matchedItem.original_price || match.estimatedOriginalPrice || null,
               savings: match.savings,
               merchant: result.flyer.merchant,
               productName: match.matchedItem.name || null,
-            };
+            });
           }
         }
       }
     }
     
-    return bestDeal;
+    // Trier par prix (du moins cher au plus cher)
+    return allDeals.sort((a, b) => a.price - b.price);
+  };
+
+  // Trouver le meilleur prix (en rabais) et les détails pour un ingrédient (pour compatibilité)
+  const getBestDealForIngredient = (ingredientName: string): { 
+    price: number | null; 
+    originalPrice: number | null; 
+    savings: number | null; 
+    merchant: string | null; 
+    productName: string | null; 
+  } => {
+    const allDeals = getAllDealsForIngredient(ingredientName);
+    if (allDeals.length === 0) {
+      return { price: null, originalPrice: null, savings: null, merchant: null, productName: null };
+    }
+    
+    // Retourner le meilleur deal (premier dans la liste triée = moins cher)
+    const bestDeal = allDeals[0];
+    return {
+      price: bestDeal.price,
+      originalPrice: bestDeal.originalPrice,
+      savings: bestDeal.savings,
+      merchant: bestDeal.merchant,
+      productName: bestDeal.productName,
+    };
   };
 
   // Trouver le meilleur prix (en rabais) pour un ingrédient (pour compatibilité)
@@ -452,6 +477,17 @@ export default function ListeEpicerie() {
               const prixTotalRabais = hasDeal ? deal.price! * quantite : null;
               const prixTotalEstime = ligne.prixEstime ? ligne.prixEstime * quantite : null;
               
+              const isExpanded = expandedItems.has(ligne.id);
+              const allDeals = hasDeal ? getAllDealsForIngredient(ligne.nom) : [];
+              const dealsByMerchant = allDeals.length > 0 ? allDeals.reduce((acc, deal) => {
+                const merchant = deal.merchant || "Autre";
+                if (!acc[merchant]) {
+                  acc[merchant] = [];
+                }
+                acc[merchant].push(deal);
+                return acc;
+              }, {} as Record<string, typeof allDeals>) : {};
+              
               return (
                 <motion.div
                   key={ligne.id}
@@ -459,81 +495,143 @@ export default function ListeEpicerie() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.2, delay: index * 0.05 }}
-                  className={`flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border ${
+                  className={`rounded-lg border overflow-hidden ${
                     hasDeal 
                       ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
                       : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
                   }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        {ligne.nom}
-                      </h4>
-                      {hasDeal && (
-                        <div className="flex items-center gap-1">
-                          <Sparkles className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                            En rabais
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-                      <span>
-                        {ligne.quantite} {ligne.unite || "unité"}
-                      </span>
-                      {hasDeal && prixTotalRabais !== null ? (
-                        <div className="flex items-center gap-2">
-                          {deal.originalPrice && (
-                            <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
-                              {(deal.originalPrice * quantite).toFixed(2)}$
+                  {/* En-tête cliquable */}
+                  <button
+                    onClick={() => {
+                      setExpandedItems(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(ligne.id)) {
+                          newSet.delete(ligne.id);
+                        } else {
+                          newSet.add(ligne.id);
+                        }
+                        return newSet;
+                      });
+                    }}
+                    className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">
+                          {ligne.nom}
+                        </h4>
+                        {hasDeal && (
+                          <div className="flex items-center gap-1">
+                            <Sparkles className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                              En rabais
                             </span>
-                          )}
-                          <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
-                            <DollarSign className="w-3 h-3" />
-                            {prixTotalRabais.toFixed(2)}$
-                          </span>
-                          {deal.savings && deal.savings > 0 && (
-                            <span className="text-xs text-green-500 font-medium">
-                              (-{(deal.savings * quantite).toFixed(2)}$)
-                            </span>
-                          )}
-                        </div>
-                      ) : prixTotalEstime !== null ? (
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" />
-                          {prixTotalEstime.toFixed(2)}$
-                        </span>
-                      ) : null}
-                    </div>
-                    {hasDeal && deal.merchant && (
-                      <div className="text-xs text-green-600 dark:text-green-400 mt-1 space-y-0.5">
-                        <div>Chez {deal.merchant}</div>
-                        {deal.productName && (
-                          <div className="text-gray-500 dark:text-gray-400 italic">
-                            {deal.productName}
                           </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEdit(ligne)}
-                      className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                      aria-label="Modifier"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(ligne.id, ligne.nom)}
-                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      aria-label="Supprimer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                      <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                        <span>
+                          {ligne.quantite} {ligne.unite || "unité"}
+                        </span>
+                        {hasDeal && prixTotalRabais !== null ? (
+                          <div className="flex items-center gap-2">
+                            {deal.originalPrice && (
+                              <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
+                                {(deal.originalPrice * quantite).toFixed(2)}$
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
+                              <DollarSign className="w-3 h-3" />
+                              {prixTotalRabais.toFixed(2)}$
+                            </span>
+                            {deal.savings && deal.savings > 0 && (
+                              <span className="text-xs text-green-500 font-medium">
+                                (-{(deal.savings * quantite).toFixed(2)}$)
+                              </span>
+                            )}
+                          </div>
+                        ) : prixTotalEstime !== null ? (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" />
+                            {prixTotalEstime.toFixed(2)}$
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {hasDeal && allDeals.length > 0 && (
+                        <motion.div
+                          animate={{ rotate: isExpanded ? 180 : 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                        </motion.div>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(ligne);
+                        }}
+                        className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                        aria-label="Modifier"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(ligne.id, ligne.nom);
+                        }}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </button>
+
+                  {/* Contenu déroulant avec les rabais groupés par épicerie */}
+                  {hasDeal && allDeals.length > 0 && (
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="p-3 pt-0 space-y-1.5">
+                            {Object.entries(dealsByMerchant).sort((a, b) => a[0].localeCompare(b[0])).map(([merchant, deals]) => (
+                              <div key={merchant} className="bg-white dark:bg-gray-800 rounded p-2 border border-green-200 dark:border-green-800">
+                                <div className="font-semibold text-green-600 dark:text-green-400 mb-1.5 text-xs uppercase tracking-wide">
+                                  {merchant}
+                                </div>
+                                {deals.map((deal, idx) => (
+                                  <div key={idx} className="text-gray-600 dark:text-gray-400 text-xs pl-2 border-l-2 border-green-300 dark:border-green-700 mb-1 last:mb-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="italic truncate flex-1">{deal.productName}</span>
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {deal.originalPrice && (
+                                          <span className="text-gray-400 dark:text-gray-500 line-through text-xs">
+                                            {deal.originalPrice.toFixed(2)}$
+                                          </span>
+                                        )}
+                                        <span className="font-semibold text-green-600 dark:text-green-400">
+                                          {deal.price.toFixed(2)}$
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  )}
                 </motion.div>
               );
             })}

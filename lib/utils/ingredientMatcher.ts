@@ -133,14 +133,30 @@ export function matchIngredients(
     const hasPapier = words1.includes('papier') || words2.includes('papier');
     const hasToiletteOrHygienique = matchingWords.some(w => 
       ['toilettes', 'toilette', 'hygienique', 'hygienic', 'toilet'].includes(w)
-    );
+    ) || normalized1.includes('toilette') || normalized1.includes('toilettes') || 
+        normalized1.includes('hygienique') || normalized1.includes('hygienic') ||
+        normalized2.includes('toilette') || normalized2.includes('toilettes') ||
+        normalized2.includes('hygienique') || normalized2.includes('hygienic');
     
     // Vérifier les faux positifs pour "papier de toilette"
     if (hasPapier && hasToiletteOrHygienique) {
-      // Exclure "papier d'aluminium"
+      // Exclure "papier d'aluminium" - vérifier si l'un contient aluminium et l'autre toilette
       const hasAluminium = normalized1.includes('aluminium') || normalized2.includes('aluminium') ||
                           normalized1.includes('aluminum') || normalized2.includes('aluminum') ||
                           normalized1.includes('foil') || normalized2.includes('foil');
+      
+      // Si l'un contient "papier" + "aluminium" et l'autre contient "papier" + "toilette/hygiénique", c'est un faux positif
+      const oneHasAluminium = normalized1.includes('aluminium') || normalized1.includes('aluminum') || normalized1.includes('foil');
+      const oneHasToilette = normalized1.includes('toilette') || normalized1.includes('toilettes') || 
+                            normalized1.includes('hygienique') || normalized1.includes('hygienic');
+      const twoHasAluminium = normalized2.includes('aluminium') || normalized2.includes('aluminum') || normalized2.includes('foil');
+      const twoHasToilette = normalized2.includes('toilette') || normalized2.includes('toilettes') || 
+                            normalized2.includes('hygienique') || normalized2.includes('hygienic');
+      
+      // Si l'un a aluminium et l'autre a toilette, c'est un faux positif
+      if ((oneHasAluminium && twoHasToilette) || (oneHasToilette && twoHasAluminium)) {
+        return false;
+      }
       
       // Exclure les produits de coloration capillaire
       const hasHairColor = normalized1.includes('colour') || normalized2.includes('colour') ||
@@ -161,6 +177,22 @@ export function matchIngredients(
       
       // Sinon, c'est un bon match pour "papier de toilette"
       return true;
+    }
+    
+    // Vérifier aussi le cas inverse : si l'un contient "papier" + "aluminium" et l'autre contient "papier" + "toilette/hygiénique"
+    // C'est un faux positif qu'il faut exclure
+    if (hasPapier) {
+      const oneHasAluminium = normalized1.includes('aluminium') || normalized1.includes('aluminum') || normalized1.includes('foil');
+      const oneHasToilette = normalized1.includes('toilette') || normalized1.includes('toilettes') || 
+                            normalized1.includes('hygienique') || normalized1.includes('hygienic');
+      const twoHasAluminium = normalized2.includes('aluminium') || normalized2.includes('aluminum') || normalized2.includes('foil');
+      const twoHasToilette = normalized2.includes('toilette') || normalized2.includes('toilettes') || 
+                            normalized2.includes('hygienique') || normalized2.includes('hygienic');
+      
+      // Si l'un a aluminium et l'autre a toilette, c'est un faux positif
+      if ((oneHasAluminium && twoHasToilette) || (oneHasToilette && twoHasAluminium)) {
+        return false;
+      }
     }
     
     // Sinon, au moins 1 mot significatif doit correspondre
@@ -226,6 +258,7 @@ export function matchIngredients(
 
   // Vérifier les faux positifs spécifiques AVANT de retourner true
   // Ex: "pates" (pâtes) ne doit PAS matcher "pate" (pâté)
+  // Ex: "papier de toilette" ne doit PAS matcher "papier d'aluminium"
   const falsePositivePairs: { [key: string]: string[] } = {
     'pates': ['pate'], // "pâtes" ne doit pas matcher "pâté"
     'pâtes': ['pate'],
@@ -245,6 +278,29 @@ export function matchIngredients(
           }
         }
       }
+    }
+  }
+  
+  // Vérification spécifique pour papier de toilette vs papier d'aluminium
+  // Si l'un contient "papier" + "toilette/hygiénique" et l'autre contient "papier" + "aluminium/foil"
+  const oneHasPapierToilette = (normalized1.includes('papier') && 
+                                (normalized1.includes('toilette') || normalized1.includes('toilettes') || 
+                                 normalized1.includes('hygienique') || normalized1.includes('hygienic'))) ||
+                               (normalized2.includes('papier') && 
+                                (normalized2.includes('toilette') || normalized2.includes('toilettes') || 
+                                 normalized2.includes('hygienique') || normalized2.includes('hygienic')));
+  
+  const oneHasPapierAluminium = (normalized1.includes('papier') && 
+                                  (normalized1.includes('aluminium') || normalized1.includes('aluminum') || 
+                                   normalized1.includes('foil'))) ||
+                                 (normalized2.includes('papier') && 
+                                  (normalized2.includes('aluminium') || normalized2.includes('aluminum') || 
+                                   normalized2.includes('foil')));
+  
+  if (oneHasPapierToilette && oneHasPapierAluminium) {
+    // Vérifier que ce n'est pas le même texte (ce qui serait un vrai match)
+    if (normalized1 !== normalized2) {
+      return false; // Faux positif : papier de toilette vs papier d'aluminium
     }
   }
 
@@ -277,12 +333,13 @@ export function findMatchesInFlyerItems(
       continue;
     }
 
-    let bestMatch: {
+    // Retourner TOUS les matches pour cet ingrédient (pas seulement le meilleur)
+    // Cela permet d'afficher plusieurs rabais du même item dans différents supermarchés
+    const ingredientMatches: Array<{
       ingredient: string;
       matchedItem: any;
       matchScore: number;
-    } | null = null;
-    let bestScore = 0;
+    }> = [];
 
     for (const item of flyerItems) {
       const itemName = item.name || "";
@@ -312,12 +369,42 @@ export function findMatchesInFlyerItems(
         // Vérifier si c'est un faux positif
         const patterns = falsePositivePatterns[ingredientWord];
         if (patterns) {
-          const isFalsePositive = patterns.some(pattern => 
-            normalizedItemName.includes(pattern) && !normalizedItemName.includes(ingredientWord)
-          );
-          if (isFalsePositive) {
-            logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}"`, { ingredient, itemName });
-            continue;
+          // Pour "papier", vérifier spécifiquement si l'ingrédient est "papier de toilette/hygiénique"
+          // et si l'item contient "aluminium" ou autres faux positifs
+          if (ingredientWord === 'papier') {
+            const isToiletPaper = normalizedIngredient.includes('toilette') || 
+                                  normalizedIngredient.includes('toilettes') ||
+                                  normalizedIngredient.includes('hygienique') ||
+                                  normalizedIngredient.includes('hygienic');
+            
+            if (isToiletPaper) {
+              // Si c'est du papier de toilette, exclure les items avec aluminium/foil/etc
+              const hasFalsePositive = patterns.some(pattern => 
+                normalizedItemName.includes(pattern)
+              );
+              if (hasFalsePositive) {
+                logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}" (papier de toilette vs papier d'aluminium)`, { ingredient, itemName });
+                continue;
+              }
+            } else {
+              // Si ce n'est pas du papier de toilette, utiliser la logique normale
+              const isFalsePositive = patterns.some(pattern => 
+                normalizedItemName.includes(pattern) && !normalizedItemName.includes(ingredientWord)
+              );
+              if (isFalsePositive) {
+                logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}"`, { ingredient, itemName });
+                continue;
+              }
+            }
+          } else {
+            // Pour les autres mots, utiliser la logique normale
+            const isFalsePositive = patterns.some(pattern => 
+              normalizedItemName.includes(pattern) && !normalizedItemName.includes(ingredientWord)
+            );
+            if (isFalsePositive) {
+              logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}"`, { ingredient, itemName });
+              continue;
+            }
           }
         }
         
@@ -390,24 +477,26 @@ export function findMatchesInFlyerItems(
           continue;
         }
 
-        // Garder le meilleur match pour cet ingrédient
-        if (matchScore > bestScore) {
-          bestMatch = {
-            ingredient,
-            matchedItem: item,
-            matchScore,
-          };
-          bestScore = matchScore;
-        }
+        // Ajouter TOUS les matches qui passent le seuil (pas seulement le meilleur)
+        // Cela permet d'afficher plusieurs rabais du même item dans différents supermarchés
+        ingredientMatches.push({
+          ingredient,
+          matchedItem: item,
+          matchScore,
+        });
       }
     }
 
-    if (bestMatch) {
-      matches.push(bestMatch);
-      logger.debug(`Match trouvé: "${ingredient}" → "${bestMatch.matchedItem.name}"`, { 
+    // Ajouter tous les matches trouvés pour cet ingrédient
+    if (ingredientMatches.length > 0) {
+      matches.push(...ingredientMatches);
+      logger.debug(`${ingredientMatches.length} match(s) trouvé(s) pour "${ingredient}"`, { 
         ingredient, 
-        matchedItem: bestMatch.matchedItem.name, 
-        score: bestScore 
+        matchesCount: ingredientMatches.length,
+        matches: ingredientMatches.map(m => ({
+          item: m.matchedItem.name,
+          score: m.matchScore
+        }))
       });
     } else {
       logger.debug(`Aucun match pour: "${ingredient}"`, { 

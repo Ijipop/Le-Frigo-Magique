@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, ShoppingCart, Heart, Zap, Filter, X, Loader2 } from "lucide-react";
+import { ShoppingCart, Heart, Zap, Filter, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import { getFoodNames } from "../../../../lib/utils/foodItems";
@@ -150,16 +150,6 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
     return { currentBudget, currentPreferredItems, currentPantryItems, currentAllergies };
   };
 
-  const handleSearchByBudget = async () => {
-    const { currentBudget, currentAllergies } = await loadUserDataForSearch();
-    
-    if (!currentBudget) {
-      return;
-    }
-
-    onSearch('budget', [], currentBudget, currentAllergies, Array.from(selectedFilters));
-  };
-
   const handleSearchByPantry = async () => {
     const { currentPantryItems, currentAllergies } = await loadUserDataForSearch();
     
@@ -167,7 +157,8 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
       return;
     }
 
-    onSearch('pantry', currentPantryItems, null, currentAllergies, Array.from(selectedFilters));
+    // Recherche par Garde-Manger : UNIQUEMENT les ingrédients du garde-manger et les allergies, AUCUN filtre ni budget
+    onSearch('pantry', currentPantryItems, null, currentAllergies, []);
   };
 
   const handleSearchByFavorites = async () => {
@@ -178,7 +169,8 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
     }
 
     const preferredItemNames = getFoodNames(currentPreferredItems);
-    onSearch('favorites', preferredItemNames, null, currentAllergies, Array.from(selectedFilters));
+    // Recherche par Aliments Favoris : UNIQUEMENT les aliments favoris et les allergies, AUCUN filtre ni budget
+    onSearch('favorites', preferredItemNames, null, currentAllergies, []);
   };
 
   const handleSearchGeneral = async () => {
@@ -190,7 +182,7 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
       return;
     }
 
-    // Recherche uniquement avec les filtres, sans ingrédients ni budget
+    // Recherche par Filtres : UNIQUEMENT les filtres sélectionnés et les allergies, AUCUN ingrédient ni budget
     onSearch('general', [], null, currentAllergies, Array.from(selectedFilters));
   };
 
@@ -223,28 +215,8 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
         </div>
       </motion.div>
 
-      {/* 3 boutons de recherche */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <Button
-          onClick={handleSearchByBudget}
-          disabled={searching !== null || loading}
-          className="w-full h-12 font-medium transition-all hover:scale-105 active:scale-95"
-          variant={searching === 'budget' ? "primary" : "outline"}
-          size="sm"
-        >
-          {searching === 'budget' ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Recherche...
-            </>
-          ) : (
-            <>
-              <DollarSign className="w-4 h-4 mr-2" />
-              Par Budget
-            </>
-          )}
-        </Button>
-
+      {/* 2 boutons de recherche */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         <Button
           onClick={handleSearchByPantry}
           disabled={searching !== null || loading}
