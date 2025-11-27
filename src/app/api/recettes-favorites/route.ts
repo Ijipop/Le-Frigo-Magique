@@ -40,9 +40,12 @@ export const GET = withRateLimit(
         data: favorites,
       });
     } catch (error) {
-      logger.error("Erreur lors de la récupération des favoris", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(
+        "Erreur lors de la récupération des favoris",
+        error instanceof Error ? error : new Error(errorMessage),
+        { message: errorMessage }
+      );
       return NextResponse.json(
         { error: "Erreur lors de la récupération des favoris" },
         { status: 500 }
@@ -123,9 +126,12 @@ export const POST = withRateLimit(
         message: "Recette ajoutée aux favoris",
       });
     } catch (error: any) {
-      logger.error("Erreur lors de l'ajout aux favoris", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(
+        "Erreur lors de l'ajout aux favoris",
+        error instanceof Error ? error : new Error(errorMessage),
+        { message: errorMessage, code: error.code }
+      );
 
       if (error.code === "P2002") {
         // Violation de contrainte unique
@@ -191,9 +197,12 @@ export const DELETE = withRateLimit(
         message: "Recette retirée des favoris",
       });
     } catch (error) {
-      logger.error("Erreur lors de la suppression des favoris", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(
+        "Erreur lors de la suppression des favoris",
+        error instanceof Error ? error : new Error(errorMessage),
+        { message: errorMessage }
+      );
       return NextResponse.json(
         { error: "Erreur lors de la suppression des favoris" },
         { status: 500 }
