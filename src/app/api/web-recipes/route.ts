@@ -10,22 +10,28 @@ export async function GET(req: Request) {
     const allergiesParam = searchParams.get("allergies") || "";
     const filtersParam = searchParams.get("filters") || "";
 
+    // Normaliser les ingrédients (minuscules, trim, déduplication)
     const ingredientsArray = ingredientsParam
       .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .filter((value, index, self) => self.indexOf(value) === index); // Déduplication
 
+    // Normaliser les allergies (minuscules, trim, déduplication)
     const allergiesArray = allergiesParam
       .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .filter((value, index, self) => self.indexOf(value) === index); // Déduplication
 
+    // Normaliser les filtres (minuscules, trim, déduplication)
     const filtersArray = filtersParam
       .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .filter((value, index, self) => self.indexOf(value) === index); // Déduplication
 
-    // Normaliser et trier les ingrédients pour une clé de cache cohérente
+    // Trier pour une clé de cache cohérente (indépendante de l'ordre)
     const normalizedIngredients = ingredientsArray.sort().join(",");
     const normalizedAllergies = allergiesArray.sort().join(",");
     const normalizedFilters = filtersArray.sort().join(",");
@@ -91,7 +97,7 @@ export async function GET(req: Request) {
       })) ?? [];
     };
 
-    // Mapper les filtres vers des termes de recherche Google
+    // Mapper les filtres vers des termes de recherche Google (normalisé en minuscules)
     const filterTerms: { [key: string]: string } = {
       "proteine": "riche en protéines",
       "dessert": "dessert",
@@ -110,6 +116,8 @@ export async function GET(req: Request) {
       "sante": "santé",
       "comfort": "réconfort",
     };
+    
+    // Les filtres sont déjà normalisés en minuscules, donc on peut les utiliser directement
 
     // Construire les termes de filtres pour la requête
     const filterQueryTerms = filtersArray
