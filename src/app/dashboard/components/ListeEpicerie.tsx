@@ -79,8 +79,10 @@ export default function ListeEpicerie() {
     setShowForm(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitForm = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
 
     try {
       const data = {
@@ -125,6 +127,14 @@ export default function ListeEpicerie() {
       console.error("Erreur:", error);
       toast.error("Une erreur est survenue");
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    handleSubmitForm(e);
+  };
+
+  const handleConfirm = () => {
+    handleSubmitForm();
   };
 
   const handleEdit = (ligne: LigneListe) => {
@@ -293,12 +303,12 @@ export default function ListeEpicerie() {
           isOpen={showForm}
           onClose={resetForm}
           title={editingId ? "Modifier l'item" : "Ajouter un item"}
-          onConfirm={handleSubmit}
+          onConfirm={handleConfirm}
           variant="primary"
           confirmText={editingId ? "Modifier" : "Ajouter"}
           cancelText="Annuler"
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => handleSubmit(e)} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Nom de l'item *
