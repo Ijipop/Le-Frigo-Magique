@@ -5,3 +5,15 @@
 @theme inline {
   --font-sans: var(--font-inter);
 }
+
+/* Utility class to hide scrollbar while maintaining scroll functionality - Mobile only */
+@media (max-width: 768px) {
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
