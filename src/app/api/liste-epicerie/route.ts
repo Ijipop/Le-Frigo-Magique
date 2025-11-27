@@ -75,16 +75,62 @@ export async function POST(req: Request) {
       );
     }
 
+    // Valider et parser les données
+    let quantite: number;
+    if (typeof body.quantite === "string") {
+      const parsed = parseFloat(body.quantite.trim());
+      if (isNaN(parsed)) {
+        return NextResponse.json<ApiResponse>(
+          {
+            error: "Données invalides",
+            details: [{ path: ["quantite"], message: "La quantité doit être un nombre valide" }],
+          },
+          { status: 400 }
+        );
+      }
+      quantite = parsed;
+    } else if (typeof body.quantite === "number") {
+      quantite = body.quantite;
+    } else {
+      return NextResponse.json<ApiResponse>(
+        {
+          error: "Données invalides",
+          details: [{ path: ["quantite"], message: "La quantité est requise" }],
+        },
+        { status: 400 }
+      );
+    }
+
+    // Vérifier que la quantité est positive
+    if (quantite <= 0) {
+      return NextResponse.json<ApiResponse>(
+        {
+          error: "Données invalides",
+          details: [{ path: ["quantite"], message: "La quantité doit être supérieure à 0" }],
+        },
+        { status: 400 }
+      );
+    }
+
+    let prixEstime: number | null = null;
+    if (body.prixEstime !== undefined && body.prixEstime !== null && body.prixEstime !== "") {
+      if (typeof body.prixEstime === "string") {
+        const parsed = parseFloat(body.prixEstime);
+        prixEstime = isNaN(parsed) ? null : parsed;
+      } else if (typeof body.prixEstime === "number") {
+        prixEstime = body.prixEstime;
+      }
+    }
+
     const validationResult = createLigneListeSchema.safeParse({
-      nom: body.nom,
-      quantite: typeof body.quantite === "string" ? parseFloat(body.quantite) : body.quantite,
+      nom: body.nom?.trim() || "",
+      quantite,
       unite: body.unite || null,
-      prixEstime: body.prixEstime !== undefined 
-        ? (typeof body.prixEstime === "string" ? parseFloat(body.prixEstime) : body.prixEstime)
-        : null,
+      prixEstime,
     });
 
     if (!validationResult.success) {
+      console.error("❌ [API] Erreur de validation:", validationResult.error.issues);
       return NextResponse.json<ApiResponse>(
         {
           error: "Données invalides",

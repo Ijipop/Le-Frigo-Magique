@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createLigneListeSchema = z.object({
   nom: z.string().min(1, "Le nom est requis").max(200),
-  quantite: z.number().positive("La quantité doit être positive"),
+  quantite: z.number().gt(0, "La quantité doit être supérieure à 0"),
   unite: z.string().nullable().optional(),
   prixEstime: z.number().nonnegative("Le prix doit être positif ou zéro").optional().nullable(),
 });
