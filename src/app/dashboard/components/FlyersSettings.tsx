@@ -361,7 +361,11 @@ export default function FlyersSettings() {
                                           }
                                           
                                           if ((hasOriginalPrice || hasEstimatedPrice) && hasCurrentPrice) {
-                                            const priceToShow = hasEstimatedPrice ? match.estimatedOriginalPrice : match.matchedItem.original_price;
+                                            const priceToShow: number = hasEstimatedPrice 
+                                              ? (match.estimatedOriginalPrice ?? 0)
+                                              : (typeof match.matchedItem.original_price === 'number' 
+                                                  ? match.matchedItem.original_price 
+                                                  : 0);
                                             return (
                                               <div className="flex flex-col items-end gap-1">
                                                 <div className="flex flex-col items-end">
@@ -369,10 +373,7 @@ export default function FlyersSettings() {
                                                     {match.isEstimated ? "Prix rég. (approx.)" : "Prix rég."}
                                                   </span>
                                                   <span className={`text-xs ${match.isEstimated ? 'text-gray-500 italic' : 'text-gray-400'} line-through`}>
-                                                    {priceToShow && 
-                                                      (typeof priceToShow === 'number' 
-                                                        ? priceToShow.toFixed(2)
-                                                        : parseFloat(priceToShow.toString()).toFixed(2))}$
+                                                    {priceToShow.toFixed(2)}$
                                                   </span>
                                                 </div>
                                                 <div className="flex flex-col items-end">
