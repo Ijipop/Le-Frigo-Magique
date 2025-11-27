@@ -57,9 +57,9 @@ export default function BudgetSelector() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4"></div>
-        <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50">
+        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
       </div>
     );
   }
@@ -69,45 +69,42 @@ export default function BudgetSelector() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50"
+      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
     >
       <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="flex items-center gap-3 mb-4"
+        className="flex items-center justify-between mb-3"
       >
-        <motion.div
-          whileHover={{ scale: 1.1, rotate: 5 }}
-          className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500"
+        <div className="flex items-center gap-2">
+          <motion.div
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            className="p-1.5 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500"
+          >
+            <DollarSign className="w-4 h-4 text-white" />
+          </motion.div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            Budget hebdomadaire
+          </h2>
+        </div>
+        <motion.span
+          key={budget}
+          initial={{ scale: 1.2, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.2 }}
+          className="text-xl font-bold text-orange-500 dark:text-orange-400"
         >
-          <DollarSign className="w-5 h-5 text-white" />
-        </motion.div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Budget hebdomadaire
-        </h2>
+          {budget}$
+        </motion.span>
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.2 }}
-        className="mb-6"
+        className="mb-3"
       >
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            Montant sélectionné
-          </span>
-          <motion.span
-            key={budget}
-            initial={{ scale: 1.2, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.2 }}
-            className="text-2xl font-bold text-orange-500 dark:text-orange-400"
-          >
-            {budget}$
-          </motion.span>
-        </div>
         <input
           type="range"
           min="0"
@@ -137,20 +134,12 @@ export default function BudgetSelector() {
           disabled={saving}
           className="w-full"
           variant="primary"
+          size="sm"
         >
           <Save className="w-4 h-4 mr-2" />
-          {saving ? "Sauvegarde..." : "Sauvegarder le budget"}
+          {saving ? "Sauvegarde..." : "Sauvegarder"}
         </Button>
       </motion.div>
-
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.4 }}
-        className="text-xs text-gray-500 dark:text-gray-400 mt-4 text-center"
-      >
-        Ce budget sera utilisé pour générer vos suggestions de recettes
-      </motion.p>
     </motion.div>
   );
 }
