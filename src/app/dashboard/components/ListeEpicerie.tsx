@@ -277,7 +277,7 @@ export default function ListeEpicerie() {
       originalPrice: number | null;
       savings: number | null;
       merchant: string;
-      productName: string;
+      productName: string | null;
     }> = [];
     
     // Parcourir tous les résultats de flyers
