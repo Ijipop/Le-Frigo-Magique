@@ -167,11 +167,15 @@ export async function calculateDetailedRecipeCost(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     
-    logger.error("Erreur lors du calcul détaillé du coût", {
-      error: errorMessage,
-      stack: errorStack,
-      url,
-    });
+    logger.error(
+      "Erreur lors du calcul détaillé du coût",
+      error instanceof Error ? error : new Error(errorMessage),
+      {
+        message: errorMessage,
+        stack: errorStack,
+        url,
+      }
+    );
     
     // Si c'est une erreur de parsing, retourner une estimation par défaut plutôt que d'échouer
     if (errorMessage.includes("parsing") || errorMessage.includes("timeout") || errorMessage.includes("HTTP")) {

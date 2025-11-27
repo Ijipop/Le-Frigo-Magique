@@ -110,11 +110,15 @@ export async function parseRecipeIngredients(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     
-    logger.error("Erreur lors du parsing de la recette", {
-      error: errorMessage,
-      stack: errorStack,
-      url,
-    });
+    logger.error(
+      "Erreur lors du parsing de la recette",
+      error instanceof Error ? error : new Error(errorMessage),
+      {
+        message: errorMessage,
+        stack: errorStack,
+        url,
+      }
+    );
     
     // Si c'est un timeout ou une erreur réseau, relancer avec un message plus clair
     if (errorMessage.includes("timeout") || errorMessage.includes("aborted")) {
