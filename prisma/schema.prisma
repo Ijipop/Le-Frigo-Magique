@@ -35,6 +35,7 @@ model Preferences {
   allergenes        String? // JSON ou texte libre
   cuisinesFavorites String? // ex: "italien, asiatique"
   alimentsPreferes  String? // JSON array des IDs d'aliments préférés
+  codePostal        String? // Code postal pour les circulaires (ex: H1Y3C3)
 }
 
 model ArticleGardeManger {

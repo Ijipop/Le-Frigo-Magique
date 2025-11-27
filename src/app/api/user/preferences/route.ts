@@ -8,6 +8,7 @@ import type { ApiResponse } from "../../../../../lib/types/api";
 const preferencesSchema = z.object({
   alimentsPreferes: z.array(z.string()).optional(),
   allergies: z.array(z.string()).optional(),
+  codePostal: z.string().optional().nullable(),
 });
 
 // GET - Récupérer les préférences de l'utilisateur
@@ -66,6 +67,7 @@ export async function GET() {
       data: {
         alimentsPreferes,
         allergies,
+        codePostal: preferences.codePostal || null,
       },
     });
   } catch (error) {
@@ -125,6 +127,7 @@ export async function PUT(req: Request) {
     const updateData: {
       alimentsPreferes?: string | null;
       allergenes?: string | null;
+      codePostal?: string | null;
     } = {};
 
     if (validation.data.alimentsPreferes !== undefined) {
@@ -132,6 +135,13 @@ export async function PUT(req: Request) {
     }
     if (validation.data.allergies !== undefined) {
       updateData.allergenes = allergiesJson;
+    }
+    if (validation.data.codePostal !== undefined) {
+      // Normaliser le code postal : enlever les espaces et mettre en majuscules
+      const codePostalNormalise = validation.data.codePostal
+        ? validation.data.codePostal.replace(/\s+/g, "").toUpperCase()
+        : null;
+      updateData.codePostal = codePostalNormalise;
     }
 
     if (preferences) {
@@ -159,14 +169,27 @@ export async function PUT(req: Request) {
       }
     }
 
+    // Parser les aliments préférés pour la réponse
+    let alimentsPreferes: string[] = [];
+    if (preferences.alimentsPreferes) {
+      try {
+        alimentsPreferes = JSON.parse(preferences.alimentsPreferes);
+      } catch (e) {
+        console.error("Erreur lors du parsing des aliments préférés:", e);
+      }
+    }
+
     return NextResponse.json<ApiResponse>({
       data: {
         alimentsPreferes: validation.data.alimentsPreferes !== undefined 
           ? (validation.data.alimentsPreferes || [])
-          : (preferences.alimentsPreferes ? JSON.parse(preferences.alimentsPreferes) : []),
+          : alimentsPreferes,
         allergies: validation.data.allergies !== undefined
           ? (validation.data.allergies || [])
           : allergies,
+        codePostal: validation.data.codePostal !== undefined
+          ? (validation.data.codePostal ? validation.data.codePostal.replace(/\s+/g, "").toUpperCase() : null)
+          : (preferences.codePostal || null),
       },
     });
   } catch (error) {
