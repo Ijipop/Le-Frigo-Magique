@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Save } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Save, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -120,9 +120,14 @@ export default function QuickSettings() {
       className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
     >
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-          Paramètres rapides
-        </h2>
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
+            <Settings className="w-5 h-5 text-white" />
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            Paramètres rapides
+          </h2>
+        </div>
         <Button
           onClick={handleSave}
           disabled={saving}
