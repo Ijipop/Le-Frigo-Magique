@@ -36,8 +36,9 @@ export default function RecipeSearchContainer() {
 
   // Écouter l'événement personnalisé pour la recherche par budget depuis BudgetSelector
   useEffect(() => {
-    const handleSearchByBudget = async (event: CustomEvent) => {
-      const { budget, typeRepas, jourSemaine } = event.detail;
+    const handleSearchByBudget = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ budget: number; typeRepas?: string; jourSemaine?: number }>;
+      const { budget, typeRepas, jourSemaine } = customEvent.detail;
       // Recherche par Budget : UNIQUEMENT le budget, typeRepas et jourSemaine si fournis, AUCUN filtre supplémentaire
       const filters: string[] = [];
       if (typeRepas) filters.push(typeRepas);
@@ -55,8 +56,9 @@ export default function RecipeSearchContainer() {
       );
     };
 
-    const handleSearchByFavorites = async (event: CustomEvent) => {
-      const { favorites } = event.detail;
+    const handleSearchByFavorites = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ favorites: string[] }>;
+      const { favorites } = customEvent.detail;
       // Recherche par Aliments Favoris : UNIQUEMENT les aliments favoris et les allergies, AUCUN filtre ni budget
       if (!favorites || favorites.length === 0) {
         toast.warning("Aucun aliment favori sélectionné");
@@ -79,11 +81,11 @@ export default function RecipeSearchContainer() {
       );
     };
 
-    window.addEventListener('searchByBudget', handleSearchByBudget as EventListener);
-    window.addEventListener('searchByFavorites', handleSearchByFavorites as EventListener);
+    window.addEventListener('searchByBudget', handleSearchByBudget);
+    window.addEventListener('searchByFavorites', handleSearchByFavorites);
     return () => {
-      window.removeEventListener('searchByBudget', handleSearchByBudget as EventListener);
-      window.removeEventListener('searchByFavorites', handleSearchByFavorites as EventListener);
+      window.removeEventListener('searchByBudget', handleSearchByBudget);
+      window.removeEventListener('searchByFavorites', handleSearchByFavorites);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
