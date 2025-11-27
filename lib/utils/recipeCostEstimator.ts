@@ -1,8 +1,9 @@
 import { logger } from "./logger";
+import { getFallbackPrice } from "./priceFallback";
 
 /**
  * Estime rapidement le coût d'une recette basé sur son titre et snippet
- * Utilise GPT si disponible, sinon des règles simples
+ * Utilise GPT si disponible, sinon des règles basées sur les prix moyens du Québec
  * 
  * Approche MVP : Estimation rapide sans avoir besoin de lire toute la recette
  */
@@ -102,12 +103,91 @@ Réponds UNIQUEMENT avec un nombre décimal (ex: 12.50), sans texte, sans explic
 
 /**
  * Estimation basée sur des règles (fallback sans GPT)
- * Détecte les mots-clés et estime selon des catégories
+ * Utilise les prix moyens du Québec de priceFallback.ts pour des estimations plus précises
  */
 function estimateWithRules(title: string, snippet: string): number {
   const text = `${title} ${snippet}`.toLowerCase();
   
-  // Catégories de prix par ingrédient/protéine principale
+  // Liste d'ingrédients courants à détecter dans le texte
+  const commonIngredients = [
+    // Viandes
+    "poulet", "boeuf", "bœuf", "porc", "agneau", "veau", "saucisse", "bacon", "jambon", "steak",
+    // Poissons
+    "saumon", "thon", "morue", "crevette", "crevettes", "homard", "crabe", "poisson", "fruits de mer",
+    // Pâtes et céréales
+    "pâtes", "pates", "spaghetti", "penne", "riz", "quinoa", "couscous",
+    // Légumes
+    "tomate", "carotte", "poivron", "oignon", "patate", "pomme de terre", "laitue", "salade", 
+    "brocoli", "choufleur", "courgette", "aubergine", "champignon", "légume",
+    // Laitiers
+    "lait", "fromage", "beurre", "yogourt", "yaourt", "crème",
+    // Autres
+    "huile", "vinaigre", "farine", "sucre", "oeuf", "œuf", "oeufs", "œufs", "pain",
+  ];
+
+  // Détecter les ingrédients présents dans le texte
+  const detectedIngredients: string[] = [];
+  for (const ingredient of commonIngredients) {
+    if (text.includes(ingredient)) {
+      detectedIngredients.push(ingredient);
+    }
+  }
+
+  // Si on a détecté des ingrédients, utiliser les prix de fallback du Québec
+  if (detectedIngredients.length > 0) {
+    let totalCost = 0;
+    let ingredientCount = 0;
+
+    for (const ingredient of detectedIngredients) {
+      const fallback = getFallbackPrice(ingredient);
+      if (fallback) {
+        // Pour l'estimation rapide, on prend une portion raisonnable (15-20% du prix de base)
+        // car on ne connaît pas les quantités exactes
+        const portionPrice = fallback.prix * 0.18;
+        totalCost += portionPrice;
+        ingredientCount++;
+      }
+    }
+
+    // Si on a trouvé des prix, calculer la moyenne et ajuster
+    if (ingredientCount > 0) {
+      let estimatedCost = totalCost;
+      
+      // Ajustements selon le contexte
+      let multiplier = 1.0;
+
+      // Recettes "économiques" ou "pas cher"
+      if (text.includes("économique") || text.includes("pas cher") || text.includes("budget")) {
+        multiplier = 0.7;
+      }
+
+      // Recettes "gourmet" ou "raffiné"
+      if (text.includes("gourmet") || text.includes("raffiné") || text.includes("premium")) {
+        multiplier = 1.5;
+      }
+
+      // Recettes simples/rapides (moins d'ingrédients)
+      if (text.includes("rapide") || text.includes("simple") || text.includes("facile") || 
+          text.includes("15 minutes") || text.includes("30 minutes")) {
+        multiplier *= 0.9;
+      }
+
+      // Recettes avec plusieurs protéines ou ingrédients coûteux
+      const expensiveCount = ["saumon", "crevette", "bœuf", "boeuf", "fromage", "champignon", "homard"].filter(
+        keyword => text.includes(keyword)
+      ).length;
+      if (expensiveCount > 2) {
+        multiplier *= 1.2;
+      }
+
+      estimatedCost = estimatedCost * multiplier;
+      
+      // Arrondir à 2 décimales et s'assurer d'un minimum de 3$ et maximum de 50$
+      return Math.max(3, Math.min(50, Math.round(estimatedCost * 100) / 100));
+    }
+  }
+
+  // Fallback : Catégories de prix par ingrédient/protéine principale (si aucun ingrédient détecté)
   const priceCategories: { keywords: string[]; basePrice: number }[] = [
     // Très économique (légumes, pâtes simples, riz)
     { keywords: ["pâtes", "pates", "spaghetti", "riz", "lentilles", "haricots", "tofu", "légumes", "salade"], basePrice: 5 },
@@ -144,7 +224,8 @@ function estimateWithRules(title: string, snippet: string): number {
   }
 
   // Recettes simples/rapides (moins d'ingrédients)
-  if (text.includes("rapide") || text.includes("simple") || text.includes("facile") || text.includes("15 minutes") || text.includes("30 minutes")) {
+  if (text.includes("rapide") || text.includes("simple") || text.includes("facile") || 
+      text.includes("15 minutes") || text.includes("30 minutes")) {
     multiplier *= 0.9;
   }
 

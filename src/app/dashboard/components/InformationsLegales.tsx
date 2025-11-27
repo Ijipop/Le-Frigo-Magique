@@ -168,7 +168,7 @@ export default function InformationsLegales() {
                 href="mailto:contact@frigomagique.ca" 
                 className="text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 underline"
               >
-                ijipop88@gmail.com
+                ijipop82@gmail.com
               </a>
             </div>
           </div>

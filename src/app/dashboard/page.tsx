@@ -56,7 +56,7 @@ export default async function DashboardPage() {
     },
     {
       id: "preferences",
-      label: "Préférences",
+      label: "Budget",
       icon: <Settings className="w-4 h-4" />,
       content: (
         <div className="space-y-6">

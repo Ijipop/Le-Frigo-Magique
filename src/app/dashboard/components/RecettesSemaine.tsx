@@ -54,6 +54,17 @@ export default function RecettesSemaine() {
         const recettesData = result.data || [];
         setRecettes(Array.isArray(recettesData) ? recettesData : []);
         console.log(`✅ [RecettesSemaine] ${recettesData.length} recette(s) chargée(s)`);
+        // Log pour déboguer les prix et portions
+        if (recettesData.length > 0) {
+          console.log("💰 [RecettesSemaine] Prix et portions des recettes:", recettesData.map((r: any) => ({
+            titre: r.titre,
+            estimatedCost: r.estimatedCost,
+            hasCost: r.estimatedCost !== null && r.estimatedCost !== undefined && r.estimatedCost > 0,
+            servings: r.servings,
+            servingsType: typeof r.servings,
+            hasServings: r.servings !== null && r.servings !== undefined && r.servings > 0
+          })));
+        }
       } else {
         const errorText = await response.text();
         console.error("❌ [RecettesSemaine] Erreur API:", response.status, response.statusText, errorText);
@@ -245,20 +256,44 @@ export default function RecettesSemaine() {
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {recette.source || "Source inconnue"}
                         </span>
-                        {recette.servings && recette.servings > 0 && (
-                          <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            {recette.servings} portion{recette.servings > 1 ? "s" : ""}
+                        {(() => {
+                          // Vérifier servings de manière robuste (peut être number, string, ou null)
+                          const servingsNum = recette.servings 
+                            ? (typeof recette.servings === 'number' ? recette.servings : parseInt(String(recette.servings), 10))
+                            : null;
+                          const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
+                          
+                          return hasServings ? (
+                            <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {servingsNum} portion{servingsNum > 1 ? "s" : ""}
+                            </span>
+                          ) : null;
+                        })()}
+                        {recette.estimatedCost !== null && recette.estimatedCost !== undefined && recette.estimatedCost > 0 ? (
+                          <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
+                            {(() => {
+                              // Vérifier servings de manière robuste
+                              const servingsNum = recette.servings 
+                                ? (typeof recette.servings === 'number' ? recette.servings : parseInt(String(recette.servings), 10))
+                                : null;
+                              const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
+                              
+                              return hasServings ? (
+                                <>
+                                  ~{(recette.estimatedCost / servingsNum).toFixed(2)}$/portion
+                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                    ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                  </span>
+                                </>
+                              ) : (
+                                <>~{recette.estimatedCost.toFixed(2)}$</>
+                              );
+                            })()}
                           </span>
-                        )}
-                        {recette.estimatedCost !== null && recette.estimatedCost > 0 && (
-                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">
-                            ~{recette.estimatedCost.toFixed(2)}$
-                            {recette.servings && recette.servings > 0 && (
-                              <span className="text-orange-500 dark:text-orange-400 ml-1">
-                                ({(recette.estimatedCost / recette.servings).toFixed(2)}$/portion)
-                              </span>
-                            )}
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                            Prix non disponible
                           </span>
                         )}
                       </div>
