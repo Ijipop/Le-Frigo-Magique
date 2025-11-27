@@ -21,6 +21,7 @@ model Utilisateur {
   repasSemaine      RepasSemaine[]
   listesEpicerie    ListeEpicerie[]
   recettesFavorites RecetteFavorite[]
+  recettesFavoritesSearch RecetteFavoriteSearch[]
   recettesSemaine   RecetteSemaine[]
 
   createdAt DateTime @default(now())
@@ -183,4 +184,24 @@ model PrixIngredient {
 
   @@index([nom])
   @@index([categorie])
+}
+
+model RecetteFavoriteSearch {
+  id            String      @id @default(cuid())
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+
+  titre   String // Titre de la recette
+  url     String // Lien vers la recette (unique par utilisateur)
+  image   String? // URL de l'image
+  snippet String? // Description courte
+  source  String? // Site source (ex: ricardocuisine.com)
+  estimatedCost Float? // Coût approximatif en dollars CAD
+  servings Int? // Nombre de portions/personnes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([utilisateurId, url])
+  @@index([utilisateurId])
 }

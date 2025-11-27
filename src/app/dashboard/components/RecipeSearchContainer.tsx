@@ -18,25 +18,74 @@ export default function RecipeSearchContainer() {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState<string | null>(null);
 
+  // Fonction pour charger les allergies de l'utilisateur
+  const loadUserAllergies = async (): Promise<string[]> => {
+    try {
+      const preferencesResponse = await fetch("/api/user/preferences");
+      if (preferencesResponse.ok) {
+        const prefsData = await preferencesResponse.json();
+        if (prefsData.data?.allergies && Array.isArray(prefsData.data.allergies)) {
+          return prefsData.data.allergies;
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des allergies:", error);
+    }
+    return [];
+  };
+
   // Écouter l'événement personnalisé pour la recherche par budget depuis BudgetSelector
   useEffect(() => {
-    const handleSearchByBudget = (event: CustomEvent) => {
-      const { budget, typeRepas, jourSemaine } = event.detail;
+    const handleSearchByBudget = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ budget: number; typeRepas?: string; jourSemaine?: number }>;
+      const { budget, typeRepas, jourSemaine } = customEvent.detail;
+      // Recherche par Budget : UNIQUEMENT le budget, typeRepas et jourSemaine si fournis, AUCUN filtre supplémentaire
+      const filters: string[] = [];
+      if (typeRepas) filters.push(typeRepas);
+      if (jourSemaine) filters.push(`jour-${jourSemaine}`);
+      
+      // Charger les allergies de l'utilisateur
+      const allergies = await loadUserAllergies();
+      
       handleSearch(
         'budget',
-        [],
+        [], // Pas d'ingrédients
         budget,
-        [],
-        [
-          ...(typeRepas ? [typeRepas] : []),
-          ...(jourSemaine ? [`jour-${jourSemaine}`] : []),
-        ]
+        allergies, // Allergies de l'utilisateur
+        filters // Seulement typeRepas et jourSemaine si fournis
       );
     };
 
-    window.addEventListener('searchByBudget', handleSearchByBudget as EventListener);
+    const handleSearchByFavorites = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ favorites: string[] }>;
+      const { favorites } = customEvent.detail;
+      // Recherche par Aliments Favoris : UNIQUEMENT les aliments favoris et les allergies, AUCUN filtre ni budget
+      if (!favorites || favorites.length === 0) {
+        toast.warning("Aucun aliment favori sélectionné");
+        return;
+      }
+
+      // Charger les allergies de l'utilisateur
+      const allergies = await loadUserAllergies();
+      
+      // Convertir les IDs en noms d'aliments
+      const { getFoodNames } = await import("../../../../lib/utils/foodItems");
+      const preferredItemNames = getFoodNames(favorites);
+      
+      handleSearch(
+        'favorites',
+        preferredItemNames, // Aliments favoris
+        null, // Pas de budget
+        allergies, // Allergies de l'utilisateur
+        [] // Pas de filtres
+      );
+    };
+
+    window.addEventListener('searchByBudget', handleSearchByBudget);
+    window.addEventListener('searchByFavorites', handleSearchByFavorites);
     return () => {
-      window.removeEventListener('searchByBudget', handleSearchByBudget as EventListener);
+      window.removeEventListener('searchByBudget', handleSearchByBudget);
+      window.removeEventListener('searchByFavorites', handleSearchByFavorites);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

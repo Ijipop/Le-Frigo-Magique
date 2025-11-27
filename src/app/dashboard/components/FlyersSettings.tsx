@@ -250,10 +250,40 @@ export default function FlyersSettings() {
                   </div>
 
                   <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                    {dealsResults.results.map((result, index) => {
-                      const isExpanded = expandedFlyers.has(result.flyer.id);
-                      
-                      return (
+                    {(() => {
+                      // Grouper les résultats par épicerie (merchant)
+                      const groupedByMerchant = dealsResults.results.reduce((acc, result) => {
+                        const merchant = result.flyer.merchant || "Autre";
+                        if (!acc[merchant]) {
+                          acc[merchant] = [];
+                        }
+                        acc[merchant].push(result);
+                        return acc;
+                      }, {} as Record<string, typeof dealsResults.results>);
+
+                      // Convertir en tableau et trier par nom d'épicerie
+                      const merchantGroups = Object.entries(groupedByMerchant).sort((a, b) => 
+                        a[0].localeCompare(b[0])
+                      );
+
+                      return merchantGroups.map(([merchant, results]) => (
+                        <div key={merchant} className="mb-4">
+                          {/* En-tête du groupe d'épicerie */}
+                          <div className="mb-2 px-2">
+                            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                              {merchant}
+                            </h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {results.length} flyer{results.length > 1 ? "s" : ""} • {results.reduce((sum, r) => sum + r.matches.length, 0)} rabais • Économies totales: {results.reduce((sum, r) => sum + r.totalSavings, 0).toFixed(2)}$
+                            </p>
+                          </div>
+                          
+                          {/* Liste des flyers de cette épicerie */}
+                          <div className="space-y-2">
+                            {results.map((result, index) => {
+                              const isExpanded = expandedFlyers.has(result.flyer.id);
+                              
+                              return (
                         <motion.div
                           key={result.flyer.id}
                           initial={{ opacity: 0, y: -10 }}
@@ -289,7 +319,7 @@ export default function FlyersSettings() {
                             )}
                             <div className="flex-1 text-left">
                               <h3 className="font-semibold text-gray-900 dark:text-white">
-                                {result.flyer.merchant}
+                                {result.flyer.title || result.flyer.merchant}
                               </h3>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {result.matches.length} rabais • Économies: {result.totalSavings.toFixed(2)}$
@@ -431,8 +461,12 @@ export default function FlyersSettings() {
                             )}
                           </AnimatePresence>
                         </motion.div>
-                      );
-                    })}
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </>
               )}

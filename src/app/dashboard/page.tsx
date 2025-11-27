@@ -9,7 +9,8 @@ import CategoryItemSelector from "./components/CategoryItemSelector";
 import RecipeSearchContainer from "./components/RecipeSearchContainer";
 import RecettesSemaine from "./components/RecettesSemaine";
 import InformationsLegales from "./components/InformationsLegales";
-import { ChefHat, Settings, ShoppingBag, Scale } from "lucide-react";
+import Favoris from "./components/Favoris";
+import { ChefHat, Settings, ShoppingBag, Scale, Heart } from "lucide-react";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -62,6 +63,16 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <QuickSettings />
           <CategoryItemSelector />
+        </div>
+      ),
+    },
+    {
+      id: "favoris",
+      label: "Favoris",
+      icon: <Heart className="w-4 h-4" />,
+      content: (
+        <div className="space-y-6">
+          <Favoris />
         </div>
       ),
     },
