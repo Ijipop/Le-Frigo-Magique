@@ -117,7 +117,7 @@ export async function POST(req: Request) {
     const validation = createRecetteSchema.safeParse(normalizedBody);
     
     if (!validation.success) {
-      console.error("❌ [API] Erreur de validation:", JSON.stringify(validation.error.errors, null, 2));
+      console.error("❌ [API] Erreur de validation:", JSON.stringify(validation.error.issues, null, 2));
       console.error("❌ [API] Données qui ont échoué:", JSON.stringify(normalizedBody, null, 2));
       return NextResponse.json<ApiResponse>(
         {
