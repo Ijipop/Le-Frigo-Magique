@@ -26,6 +26,16 @@ const createRecetteSchema = z.object({
     z.literal(""),
     z.undefined()
   ]).optional().nullable(),
+  estimatedCost: z.union([
+    z.number(),
+    z.null(),
+    z.undefined()
+  ]).optional().nullable(),
+  servings: z.union([
+    z.number().int().positive().max(50),
+    z.null(),
+    z.undefined()
+  ]).optional().nullable(),
 });
 
 // GET - Récupérer les recettes de la semaine
@@ -135,6 +145,12 @@ export async function POST(req: Request) {
       image: normalizeValue(validation.data.image),
       snippet: normalizeValue(validation.data.snippet),
       source: normalizeValue(validation.data.source),
+      estimatedCost: validation.data.estimatedCost && typeof validation.data.estimatedCost === 'number' 
+        ? validation.data.estimatedCost 
+        : null,
+      servings: validation.data.servings && typeof validation.data.servings === 'number' && validation.data.servings > 0
+        ? validation.data.servings
+        : null,
     };
     
     console.log("💾 [API] Données à sauvegarder:", JSON.stringify(recetteData, null, 2));
@@ -177,19 +193,35 @@ export async function DELETE(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const recetteId = searchParams.get("id");
-
-    if (!recetteId) {
-      return NextResponse.json<ApiResponse>(
-        { error: "ID de recette requis" },
-        { status: 400 }
-      );
-    }
+    const deleteAll = searchParams.get("all") === "true";
 
     const utilisateur = await getOrCreateUser(userId);
     if (!utilisateur) {
       return NextResponse.json<ApiResponse>(
         { error: "Utilisateur non trouvé" },
         { status: 404 }
+      );
+    }
+
+    // Supprimer toutes les recettes
+    if (deleteAll) {
+      const result = await prisma.recetteSemaine.deleteMany({
+        where: {
+          utilisateurId: utilisateur.id,
+        },
+      });
+
+      return NextResponse.json<ApiResponse>({
+        data: { success: true, deletedCount: result.count },
+        message: `${result.count} recette${result.count > 1 ? "s" : ""} supprimée${result.count > 1 ? "s" : ""}`,
+      });
+    }
+
+    // Supprimer une recette spécifique
+    if (!recetteId) {
+      return NextResponse.json<ApiResponse>(
+        { error: "ID de recette requis ou paramètre 'all' manquant" },
+        { status: 400 }
       );
     }
 

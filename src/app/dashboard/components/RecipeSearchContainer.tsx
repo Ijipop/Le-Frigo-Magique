@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import SearchBox from "./SearchBox";
 import RecipeFinder from "./RecipeFinder";
@@ -17,6 +17,29 @@ export default function RecipeSearchContainer() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState<string | null>(null);
+
+  // Écouter l'événement personnalisé pour la recherche par budget depuis BudgetSelector
+  useEffect(() => {
+    const handleSearchByBudget = (event: CustomEvent) => {
+      const { budget, typeRepas, jourSemaine } = event.detail;
+      handleSearch(
+        'budget',
+        [],
+        budget,
+        [],
+        [
+          ...(typeRepas ? [typeRepas] : []),
+          ...(jourSemaine ? [`jour-${jourSemaine}`] : []),
+        ]
+      );
+    };
+
+    window.addEventListener('searchByBudget', handleSearchByBudget as EventListener);
+    return () => {
+      window.removeEventListener('searchByBudget', handleSearchByBudget as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = async (
     searchType: 'budget' | 'pantry' | 'favorites' | 'general',
@@ -38,9 +61,22 @@ export default function RecipeSearchContainer() {
       console.log(`🚫 [${searchType}] Exclusion des allergies:`, allergiesParam);
       console.log(`🏷️ [${searchType}] Filtres:`, filtersParam);
 
-      const response = await fetch(
-        `/api/web-recipes?ingredients=${encodeURIComponent(ingredientNames)}&budget=${budget || ""}&allergies=${encodeURIComponent(allergiesParam)}&filters=${encodeURIComponent(filtersParam)}`
-      );
+      // Extraire typeRepas et jourSemaine des filtres si présents
+      const typeRepasFilter = filters.find(f => ['dejeuner', 'diner', 'souper'].includes(f));
+      const jourSemaineFilter = filters.find(f => f.startsWith('jour-'));
+      const jourSemaine = jourSemaineFilter ? jourSemaineFilter.replace('jour-', '') : '';
+      
+      // Construire les paramètres de recherche
+      const searchParams = new URLSearchParams({
+        ingredients: ingredientNames,
+        ...(budget && { budget: budget.toString() }),
+        allergies: allergiesParam,
+        filters: filtersParam,
+        ...(typeRepasFilter && { typeRepas: typeRepasFilter }),
+        ...(jourSemaine && { jourSemaine }),
+      });
+
+      const response = await fetch(`/api/web-recipes?${searchParams.toString()}`);
 
       const contentType = response.headers.get("content-type");
       let data: any = {};

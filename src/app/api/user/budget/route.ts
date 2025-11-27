@@ -9,7 +9,19 @@ const budgetSchema = z.object({
   budgetHebdomadaire: z
     .number({ message: "Le budget doit être un nombre" })
     .min(0, "Le budget ne peut pas être négatif")
-    .max(10000, "Le budget ne peut pas dépasser 10000$"),
+    .max(10000, "Le budget ne peut pas dépasser 10000$")
+    .optional(),
+  typeRepasBudget: z
+    .enum(["dejeuner", "diner", "souper"])
+    .nullable()
+    .optional(),
+  jourSemaineBudget: z
+    .number()
+    .int()
+    .min(1, "Le jour doit être entre 1 et 7")
+    .max(7, "Le jour doit être entre 1 et 7")
+    .nullable()
+    .optional(),
 });
 
 // GET - Récupérer le budget de l'utilisateur
@@ -34,6 +46,8 @@ export async function GET() {
     return NextResponse.json<ApiResponse>({
       data: {
         budgetHebdomadaire: utilisateur.budgetHebdomadaire || 0,
+        typeRepasBudget: utilisateur.typeRepasBudget || null,
+        jourSemaineBudget: utilisateur.jourSemaineBudget || null,
       },
     });
   } catch (error) {
@@ -77,16 +91,32 @@ export async function PUT(req: Request) {
       );
     }
 
+    const updateData: {
+      budgetHebdomadaire?: number;
+      typeRepasBudget?: string | null;
+      jourSemaineBudget?: number | null;
+    } = {};
+
+    if (validation.data.budgetHebdomadaire !== undefined) {
+      updateData.budgetHebdomadaire = validation.data.budgetHebdomadaire;
+    }
+    if (validation.data.typeRepasBudget !== undefined) {
+      updateData.typeRepasBudget = validation.data.typeRepasBudget;
+    }
+    if (validation.data.jourSemaineBudget !== undefined) {
+      updateData.jourSemaineBudget = validation.data.jourSemaineBudget;
+    }
+
     const utilisateurMisAJour = await prisma.utilisateur.update({
       where: { id: utilisateur.id },
-      data: {
-        budgetHebdomadaire: validation.data.budgetHebdomadaire,
-      },
+      data: updateData,
     });
 
     return NextResponse.json<ApiResponse>({
       data: {
         budgetHebdomadaire: utilisateurMisAJour.budgetHebdomadaire,
+        typeRepasBudget: utilisateurMisAJour.typeRepasBudget,
+        jourSemaineBudget: utilisateurMisAJour.jourSemaineBudget,
       },
     });
   } catch (error) {

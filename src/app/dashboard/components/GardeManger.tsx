@@ -54,7 +54,15 @@ export default function GardeManger() {
 
   const fetchArticles = async () => {
     try {
-      const response = await fetch("/api/garde-manger");
+      setLoading(true);
+      const response = await fetch("/api/garde-manger", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      });
+      
       if (response.ok) {
         const result = await response.json();
         // Gérer la nouvelle structure de réponse { data: [...] } ou l'ancienne [...]
@@ -66,13 +74,19 @@ export default function GardeManger() {
         );
         setArticles(sorted);
       } else {
-        console.error("Erreur API:", response.status, response.statusText);
+        const errorText = await response.text();
+        console.error("Erreur API:", response.status, response.statusText, errorText);
         // En cas d'erreur, initialiser avec un tableau vide
         setArticles([]);
+        if (response.status === 404) {
+          console.warn("Route API /api/garde-manger non trouvée. Vérifiez que le serveur est démarré.");
+        }
       }
     } catch (error) {
       console.error("Erreur lors du chargement des articles:", error);
       setArticles([]);
+      // Ne pas afficher d'erreur toast pour éviter de spammer l'utilisateur
+      // L'utilisateur verra simplement une liste vide
     } finally {
       setLoading(false);
     }
