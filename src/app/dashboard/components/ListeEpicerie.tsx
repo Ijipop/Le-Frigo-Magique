@@ -264,7 +264,7 @@ export default function ListeEpicerie() {
     originalPrice: number | null;
     savings: number | null;
     merchant: string;
-    productName: string;
+    productName: string | null;
   }> => {
     if (!dealsResults || !dealsResults.results) {
       return [];
