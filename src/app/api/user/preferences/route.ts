@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../../lib/utils/user";
+import { logger } from "../../../../../lib/utils/logger";
+import { UnauthorizedError, NotFoundError, ValidationError, withErrorHandling } from "../../../../../lib/utils/apiError";
 import { z } from "zod";
 import type { ApiResponse } from "../../../../../lib/types/api";
 
@@ -12,23 +14,16 @@ const preferencesSchema = z.object({
 });
 
 // GET - Récupérer les préférences de l'utilisateur
-export async function GET() {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json<ApiResponse>(
-        { error: "Non autorisé" },
-        { status: 401 }
-      );
-    }
+export const GET = withErrorHandling(async () => {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new UnauthorizedError();
+  }
 
-    const utilisateur = await getOrCreateUser(userId);
-    if (!utilisateur) {
-      return NextResponse.json<ApiResponse>(
-        { error: "Utilisateur non trouvé ou non créé" },
-        { status: 404 }
-      );
-    }
+  const utilisateur = await getOrCreateUser(userId);
+  if (!utilisateur) {
+    throw new NotFoundError("Utilisateur non trouvé ou non créé");
+  }
 
     // Récupérer ou créer les préférences
     let preferences = await prisma.preferences.findUnique({
@@ -49,7 +44,7 @@ export async function GET() {
       try {
         alimentsPreferes = JSON.parse(preferences.alimentsPreferes);
       } catch (e) {
-        console.error("Erreur lors du parsing des aliments préférés:", e);
+        logger.error("Erreur lors du parsing des aliments préférés", e instanceof Error ? e : new Error(String(e)));
       }
     }
 
@@ -59,57 +54,37 @@ export async function GET() {
       try {
         allergies = JSON.parse(preferences.allergenes);
       } catch (e) {
-        console.error("Erreur lors du parsing des allergies:", e);
+        logger.error("Erreur lors du parsing des allergies", e instanceof Error ? e : new Error(String(e)));
       }
     }
 
-    return NextResponse.json<ApiResponse>({
-      data: {
-        alimentsPreferes,
-        allergies,
-        codePostal: preferences.codePostal || null,
-      },
-    });
-  } catch (error) {
-    console.error("Erreur lors de la récupération des préférences:", error);
-    return NextResponse.json<ApiResponse>(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
-  }
-}
+  return NextResponse.json<ApiResponse>({
+    data: {
+      alimentsPreferes,
+      allergies,
+      codePostal: preferences.codePostal || null,
+    },
+  });
+});
 
 // PUT - Mettre à jour les préférences de l'utilisateur
-export async function PUT(req: Request) {
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json<ApiResponse>(
-        { error: "Non autorisé" },
-        { status: 401 }
-      );
-    }
+export const PUT = withErrorHandling(async (req: Request) => {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new UnauthorizedError();
+  }
 
-    const body = await req.json();
-    const validation = preferencesSchema.safeParse(body);
+  const body = await req.json();
+  const validation = preferencesSchema.safeParse(body);
 
-    if (!validation.success) {
-      return NextResponse.json<ApiResponse>(
-        {
-          error: "Données invalides",
-          details: validation.error.flatten(),
-        },
-        { status: 400 }
-      );
-    }
+  if (!validation.success) {
+    throw new ValidationError("Erreur de validation", validation.error.issues);
+  }
 
-    const utilisateur = await getOrCreateUser(userId);
-    if (!utilisateur) {
-      return NextResponse.json<ApiResponse>(
-        { error: "Utilisateur non trouvé ou non créé" },
-        { status: 404 }
-      );
-    }
+  const utilisateur = await getOrCreateUser(userId);
+  if (!utilisateur) {
+    throw new NotFoundError("Utilisateur non trouvé ou non créé");
+  }
 
     // Récupérer ou créer les préférences
     let preferences = await prisma.preferences.findUnique({
@@ -165,7 +140,7 @@ export async function PUT(req: Request) {
       try {
         allergies = JSON.parse(preferences.allergenes);
       } catch (e) {
-        console.error("Erreur lors du parsing des allergies:", e);
+        logger.error("Erreur lors du parsing des allergies", e instanceof Error ? e : new Error(String(e)));
       }
     }
 
@@ -175,7 +150,7 @@ export async function PUT(req: Request) {
       try {
         alimentsPreferes = JSON.parse(preferences.alimentsPreferes);
       } catch (e) {
-        console.error("Erreur lors du parsing des aliments préférés:", e);
+        logger.error("Erreur lors du parsing des aliments préférés", e instanceof Error ? e : new Error(String(e)));
       }
     }
 
@@ -192,12 +167,5 @@ export async function PUT(req: Request) {
           : (preferences.codePostal || null),
       },
     });
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour des préférences:", error);
-    return NextResponse.json<ApiResponse>(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
-  }
-}
+});
 

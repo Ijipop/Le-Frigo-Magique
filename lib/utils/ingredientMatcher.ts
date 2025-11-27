@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 /**
  * Normalise une chaîne de caractères pour le matching
  * - Enlève les accents
@@ -271,7 +273,7 @@ export function findMatchesInFlyerItems(
     const normalizedIngredient = normalizeIngredientName(ingredient);
     
     if (!normalizedIngredient || normalizedIngredient.length < 2) {
-      console.log(`⚠️ [MATCHER] Ingrédient ignoré (trop court ou vide): "${ingredient}"`);
+      logger.debug(`Ingrédient ignoré (trop court ou vide): "${ingredient}"`, { ingredient });
       continue;
     }
 
@@ -314,7 +316,7 @@ export function findMatchesInFlyerItems(
             normalizedItemName.includes(pattern) && !normalizedItemName.includes(ingredientWord)
           );
           if (isFalsePositive) {
-            console.log(`⚠️ [MATCHER] Faux positif évité: "${ingredient}" → "${itemName}"`);
+            logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}"`, { ingredient, itemName });
             continue;
           }
         }
@@ -402,9 +404,16 @@ export function findMatchesInFlyerItems(
 
     if (bestMatch) {
       matches.push(bestMatch);
-      console.log(`✅ [MATCHER] Match trouvé: "${ingredient}" → "${bestMatch.matchedItem.name}" (score: ${bestScore})`);
+      logger.debug(`Match trouvé: "${ingredient}" → "${bestMatch.matchedItem.name}"`, { 
+        ingredient, 
+        matchedItem: bestMatch.matchedItem.name, 
+        score: bestScore 
+      });
     } else {
-      console.log(`❌ [MATCHER] Aucun match pour: "${ingredient}" (normalisé: "${normalizedIngredient}")`);
+      logger.debug(`Aucun match pour: "${ingredient}"`, { 
+        ingredient, 
+        normalizedIngredient 
+      });
     }
   }
 

@@ -4,6 +4,7 @@ import { prisma } from "../../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../../lib/utils/user";
 import { findMatchesInFlyerItems, matchIngredients } from "../../../../../lib/utils/ingredientMatcher";
 import { getFlyerItems } from "../../../../../lib/utils/flippApi";
+import { logger } from "../../../../../lib/utils/logger";
 import type { Preferences } from "@prisma/client";
 
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
@@ -257,11 +258,14 @@ export async function GET(req: Request) {
         const merchantName = flyer.merchant || flyer.merchant_name || flyer.name;
         
         if (error) {
-          console.log(`⚠️ [SEARCH-DEALS] Erreur pour ${merchantName}: ${error}`);
+          logger.warn(`Erreur pour ${merchantName}`, { merchant: merchantName, error });
         } else if (items.length === 0) {
-          console.log(`⚠️ [SEARCH-DEALS] Aucun item récupéré pour ${merchantName}`);
+          logger.debug(`Aucun item récupéré pour ${merchantName}`, { merchant: merchantName });
         } else {
-          console.log(`✅ [SEARCH-DEALS] ${items.length} items récupérés pour ${merchantName}`);
+          logger.info(`${items.length} items récupérés pour ${merchantName}`, { 
+            merchant: merchantName, 
+            itemsCount: items.length 
+          });
           allFlyerData.push({ items, flyer, merchantName });
           
           // Stocker TOUS les items avec prix réguliers pour référence
@@ -292,36 +296,44 @@ export async function GET(req: Request) {
     }
     
     // Log pour déboguer
-    console.log(`🔍 [SEARCH-DEALS] Items avec prix réguliers collectés: ${allItemsWithPrices.length}`);
-    if (allItemsWithPrices.length > 0) {
-      console.log(`🔍 [SEARCH-DEALS] Exemples d'items de référence:`, allItemsWithPrices.slice(0, 3).map(i => ({
+    logger.debug(`Items avec prix réguliers collectés: ${allItemsWithPrices.length}`, {
+      totalItemsWithPrices: allItemsWithPrices.length,
+      sampleItems: allItemsWithPrices.slice(0, 3).map(i => ({
         name: i.name,
         normalized: i.normalizedName,
         original: i.original_price,
         merchant: i.merchant
-      })));
-    }
+      }))
+    });
     
     // DEUXIÈME PASSE : Traiter les matches avec estimation des prix
     const processFlyerMatches = (flyerData: { items: any[]; flyer: any; merchantName: string }) => {
       const { items: flyerItems, flyer, merchantName } = flyerData;
       
-      console.log(`🔍 [SEARCH-DEALS] Recherche dans ${merchantName}: ${flyerItems.length} items disponibles`);
-      if (flyerItems.length > 0) {
-        console.log(`🔍 [SEARCH-DEALS] Exemples d'items dans ${merchantName}:`, flyerItems.slice(0, 5).map(i => i.name));
-      }
+      logger.debug(`Recherche dans ${merchantName}`, {
+        merchant: merchantName,
+        itemsAvailable: flyerItems.length,
+        sampleItems: flyerItems.slice(0, 5).map(i => i.name)
+      });
       
       const matches = findMatchesInFlyerItems(ingredients, flyerItems);
       
-      console.log(`🔍 [SEARCH-DEALS] Matches trouvés dans ${merchantName}: ${matches.length}/${ingredients.length}`);
-      if (matches.length > 0) {
-        console.log(`🔍 [SEARCH-DEALS] Exemples de matches:`, matches.slice(0, 3).map(m => ({
+      logger.debug(`Matches trouvés dans ${merchantName}`, {
+        merchant: merchantName,
+        matchesFound: matches.length,
+        totalIngredients: ingredients.length,
+        sampleMatches: matches.slice(0, 3).map(m => ({
           ingredient: m.ingredient,
           item: m.matchedItem.name,
           score: m.matchScore
-        })));
-      } else if (ingredients.length > 0) {
-        console.log(`⚠️ [SEARCH-DEALS] Aucun match trouvé dans ${merchantName} pour:`, ingredients.slice(0, 5));
+        }))
+      });
+      
+      if (matches.length === 0 && ingredients.length > 0) {
+        logger.debug(`Aucun match trouvé dans ${merchantName}`, {
+          merchant: merchantName,
+          ingredients: ingredients.slice(0, 5)
+        });
       }
       
       if (matches.length === 0) {
@@ -394,7 +406,7 @@ export async function GET(req: Request) {
               if (estimatedOriginalPrice > current) {
                 savings = estimatedOriginalPrice - current;
               }
-              console.log(`✅ [SEARCH-DEALS] Prix estimé trouvé pour "${item.name}" dans ${merchantName}:`, {
+              logger.info(`Prix estimé trouvé pour "${item.name}"`, {
                 itemName: item.name,
                 normalized: normalizedItemName,
                 foundIn: identicalItem.merchant,
@@ -408,20 +420,14 @@ export async function GET(req: Request) {
             } else {
               // Log pour déboguer pourquoi aucun match n'est trouvé
               if (matches.indexOf(match) < 2) {
-                console.log(`⚠️ [SEARCH-DEALS] Aucun prix de référence trouvé pour "${item.name}" dans ${merchantName}:`, {
+                logger.debug(`Aucun prix de référence trouvé pour "${item.name}"`, {
                   itemName: item.name,
                   normalized: normalizedItemName,
                   brand: itemBrand || "none",
                   printId: itemPrintId || "none",
                   hasCurrentPrice: !!item.current_price,
                   currentPrice: current,
-                  totalRefItems: allItemsWithPrices.length,
-                  sampleRefs: allItemsWithPrices.slice(0, 3).map(r => ({
-                    name: r.name,
-                    normalized: r.normalizedName,
-                    brand: r.brand,
-                    printId: r.print_id
-                  }))
+                  totalRefItems: allItemsWithPrices.length
                 });
               }
             }
@@ -499,7 +505,7 @@ export async function GET(req: Request) {
       totalMatches: results.reduce((sum, r) => sum + r.matches.length, 0),
     });
   } catch (error) {
-    console.error("❌ /api/flyers/search-deals error:", error);
+    logger.error("Erreur dans /api/flyers/search-deals", error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: "internal_error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
