@@ -86,11 +86,15 @@ export async function POST(req: Request) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     
-    logger.error("Erreur lors du calcul du coût détaillé", {
-      error: errorMessage,
-      stack: errorStack,
-      url: validation.data.url,
-    });
+    logger.error(
+      "Erreur lors du calcul du coût détaillé",
+      error instanceof Error ? error : new Error(errorMessage),
+      {
+        message: errorMessage,
+        stack: errorStack,
+        url: url || "unknown",
+      }
+    );
 
     // Erreurs spécifiques
     if (error instanceof Error) {
