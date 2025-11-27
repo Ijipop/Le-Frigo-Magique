@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCachedResults, saveCache } from "../../../../lib/webSearchCache";
+import { withRateLimit, RateLimitConfigs } from "../../../../lib/utils/rateLimit";
+import { auth } from "@clerk/nextjs/server";
 
-export async function GET(req: Request) {
-  try {
+export const GET = withRateLimit(
+  RateLimitConfigs.SEARCH, // 10 requêtes par minute
+  async (req: Request) => {
     const { searchParams } = new URL(req.url);
 
     const ingredientsParam = searchParams.get("ingredients") || "";
@@ -251,11 +254,9 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ items, cached: false });
-  } catch (error) {
-    console.error("❌ [API] erreur inattendue:", error);
-    return NextResponse.json(
-      { items: [], error: "internal_error" },
-      { status: 500 }
-    );
+  },
+  async () => {
+    const { userId } = await auth();
+    return userId || null;
   }
-}
+);

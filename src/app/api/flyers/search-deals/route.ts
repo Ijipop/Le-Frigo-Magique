@@ -5,6 +5,7 @@ import { getOrCreateUser } from "../../../../../lib/utils/user";
 import { findMatchesInFlyerItems, matchIngredients } from "../../../../../lib/utils/ingredientMatcher";
 import { getFlyerItems } from "../../../../../lib/utils/flippApi";
 import { logger } from "../../../../../lib/utils/logger";
+import { withRateLimit, RateLimitConfigs, checkRateLimit } from "../../../../../lib/utils/rateLimit";
 import type { Preferences } from "@prisma/client";
 
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
@@ -75,8 +76,9 @@ function isGroceryFlyer(flyer: any) {
 }
 
 // GET - Chercher les rabais pour les ingrédients de la liste d'épicerie
-export async function GET(req: Request) {
-  try {
+export const GET = withRateLimit(
+  RateLimitConfigs.EXPENSIVE, // 5 requêtes par minute (route très coûteuse)
+  async (req: Request) => {
     const { userId } = await auth();
 
     if (!userId) {
@@ -504,12 +506,10 @@ export async function GET(req: Request) {
       results,
       totalMatches: results.reduce((sum, r) => sum + r.matches.length, 0),
     });
-  } catch (error) {
-    logger.error("Erreur dans /api/flyers/search-deals", error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json(
-      { error: "internal_error", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    );
+  },
+  async () => {
+    const { userId } = await auth();
+    return userId || null;
   }
-}
+);
 
