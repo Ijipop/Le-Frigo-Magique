@@ -32,14 +32,14 @@ export const GET = withRateLimit(
           const preferences = await prisma.preferences.findUnique({
             where: { utilisateurId: utilisateur.id },
           });
-          postalCode = preferences?.codePostal || undefined;
+          postalCode = (preferences as any)?.codePostal || undefined;
           
           // Utiliser les valeurs de la DB si pas fournies en paramètre
-          if (!typeRepas && utilisateur.typeRepasBudget) {
-            typeRepas = utilisateur.typeRepasBudget;
+          if (!typeRepas && (utilisateur as any).typeRepasBudget) {
+            typeRepas = (utilisateur as any).typeRepasBudget;
           }
-          if (!jourSemaine && utilisateur.jourSemaineBudget) {
-            jourSemaine = utilisateur.jourSemaineBudget;
+          if (!jourSemaine && (utilisateur as any).jourSemaineBudget) {
+            jourSemaine = (utilisateur as any).jourSemaineBudget;
           }
         }
       } catch (error) {
@@ -83,14 +83,112 @@ export const GET = withRateLimit(
     console.log("🔑 [API] Ingrédients normalisés:", normalizedIngredients);
     console.log("🔑 [API] Filtres reçus:", filtersArray);
 
-    // 1️⃣ — Vérifier le cache (conservation infinie)
+    // 1️⃣ — Vérifier le cache (conservation infinie avec enrichissement progressif)
+    // STRATÉGIE OPTIMISÉE :
+    // - Si cache suffisant (≥20 recettes après filtrage) → Utiliser le cache avec mélange aléatoire
+    // - Si cache insuffisant → Recherche Google + Fusion avec le cache existant (enrichissement)
+    // - Le cache s'enrichit progressivement au lieu d'être vidé
     console.log("🔍 [API] Vérification du cache...");
     const cached = await getCachedResults(cacheKey);
-    if (cached && cached.length > 0) {
-      console.log(`✅ [API] ${cached.length} résultat(s) récupérés du cache - AUCUN appel Google nécessaire`);
-      return NextResponse.json({ items: cached, cached: true });
+    const MIN_CACHE_RECIPES = 20; // Minimum de recettes après filtrage pour utiliser uniquement le cache
+    
+    if (cached && cached.length >= MIN_CACHE_RECIPES) {
+      console.log(`✅ [API] Cache valide trouvé (${cached.length} recettes) - Utilisation du cache avec mélange aléatoire`);
+      
+      // IMPORTANT : Filtrer les résultats du cache aussi !
+      // Définir les fonctions de filtrage AVANT de les utiliser
+      const blockedDomains = [
+        "pinterest.com", "pinterest.ca", "allrecipes.com", "food.com", "tasty.co",
+        "delish.com", "thespruceeats.com", "simplyrecipes.com", "foodnetwork.com",
+        "myrecipes.com", "eatingwell.com", "bonappetit.com", "epicurious.com",
+        "seriouseats.com", "tasteofhome.com", "bettycrocker.com", "pillsbury.com",
+        "kraftrecipes.com", "cookpad.com", "yummly.com",
+        "recettes.qc.ca", "lesgourmandisesdisa.com", "5ingredients15minutes.com",
+      ];
+      
+      // Fonction de détection de listes (copie de celle définie plus bas)
+      const isListPage = (item: any): boolean => {
+        if (!item.title && !item.snippet) return false;
+        const titleLower = (item.title || "").toLowerCase();
+        const snippetLower = (item.snippet || "").toLowerCase();
+        const fullText = `${titleLower} ${snippetLower}`;
+        
+        // Patterns de détection (version simplifiée mais efficace)
+        if (/\b(\d+)\s+(recettes?|repas|idées?|astuces?|conseils?|trucs?|plats?|menus?|suggestions?)\b/i.test(fullText)) return true;
+        if (/\b(projet|expérience|expérience\s+culinaire|commerce|fait\s+maison|lequel|comparaison)\b/i.test(fullText)) return true;
+        if (/(petits?\s+prix|cuisine\s+de\s+groupe|restes|recettes?\s+du\s+québec)/i.test(fullText)) return true;
+        if (titleLower.includes("|") && /(petits?\s+prix|cuisine\s+de\s+groupe|restes|recettes?\s+du\s+québec)/i.test(titleLower)) return true;
+        if (/^(du|le|la|quel|quelle|lequel)\s+(commerce|fait\s+maison|revient|coûte)/i.test(titleLower)) return true;
+        if (/(apprendre|planifier|adapter)\s+(les?\s+)?(portions|recettes?|repas)/i.test(snippetLower)) return true;
+        if (item.url && /recettes\.qc\.ca|lesgourmandisesdisa\.com|5ingredients15minutes\.com/i.test(item.url)) return true;
+        return false;
+      };
+      
+      // Filtrer les résultats du cache
+      const filteredCached = cached.filter(item => {
+        if (!item.source) return true;
+        const domain = item.source.toLowerCase();
+        const isBlocked = blockedDomains.some(blocked => domain.includes(blocked));
+        const isList = isListPage(item);
+        return !isBlocked && !isList;
+      });
+      
+      console.log(`🚫 [API] Cache: ${cached.length} → ${filteredCached.length} après filtrage`);
+      
+      // Si après filtrage on a encore assez de recettes, utiliser le cache avec mélange aléatoire
+      if (filteredCached.length >= MIN_CACHE_RECIPES) {
+        // Mélanger aléatoirement pour offrir de la variété à chaque requête
+        const shuffled = [...filteredCached].sort(() => Math.random() - 0.5);
+        
+        // Estimer les coûts pour les résultats du cache filtrés
+        const { estimateRecipeCost } = await import("../../../../lib/utils/recipeCostEstimator");
+        const cachedWithCost = await Promise.all(
+          shuffled.map(async (item: any) => {
+            try {
+              const result = await estimateRecipeCost(item.title, item.snippet || "");
+              
+              // Ré-extraire les portions si nécessaire
+              let servings = item.servings;
+              if (!servings || servings === undefined) {
+                const fullText = `${item.title || ""} ${item.snippet || ""}`;
+                servings = extractServingsFromText(fullText) || undefined;
+              }
+              
+              return {
+                ...item,
+                estimatedCost: result.estimatedCost,
+                costSource: result.source,
+                servings: servings,
+              };
+            } catch (error) {
+              return {
+                ...item,
+                estimatedCost: 10.00,
+                costSource: "fallback",
+                servings: item.servings || undefined,
+              };
+            }
+          })
+        );
+        
+        // Sélectionner aléatoirement entre 10 et 15 recettes pour variété
+        const minReturn = 10;
+        const maxReturn = 15;
+        const count = Math.min(maxReturn, cachedWithCost.length);
+        const selected = cachedWithCost.slice(0, count);
+        
+        console.log(`🎲 [API] ${selected.length} recette(s) sélectionnée(s) aléatoirement depuis le cache`);
+        return NextResponse.json({ items: selected, cached: true });
+      } else {
+        console.log(`⚠️ [API] Cache insuffisant après filtrage (${filteredCached.length} < ${MIN_CACHE_RECIPES}), nouvelle recherche nécessaire`);
+        // Continuer avec une nouvelle recherche Google
+      }
+    } else if (cached && cached.length > 0 && cached.length < MIN_CACHE_RECIPES) {
+      console.log(`⚠️ [API] Cache trouvé mais insuffisant (${cached.length} < ${MIN_CACHE_RECIPES}), nouvelle recherche pour plus de variété`);
+      // Continuer avec une nouvelle recherche Google
+    } else {
+      console.log("❌ [API] Cache non trouvé ou expiré - Nouvelle recherche Google");
     }
-    console.log("❌ [API] Cache non trouvé - Appel à Google nécessaire");
 
     if (!process.env.GOOGLE_API_KEY || !process.env.GOOGLE_CX) {
       console.error("❌ GOOGLE_API_KEY ou GOOGLE_CX manquants");
@@ -108,13 +206,13 @@ export const GET = withRateLimit(
     const allItems: any[] = [];
     const seenUrls = new Set<string>();
     
-    // Fonction pour faire une recherche Google
-    const performGoogleSearch = async (query: string): Promise<any[]> => {
+    // Fonction pour faire une recherche Google - optimisée pour les recettes individuelles
+    const performGoogleSearch = async (query: string, maxResults: number = 20): Promise<any[]> => {
       const url = new URL("https://customsearch.googleapis.com/customsearch/v1");
       url.searchParams.set("key", process.env.GOOGLE_API_KEY!);
       url.searchParams.set("cx", process.env.GOOGLE_CX!);
       url.searchParams.set("q", query);
-      url.searchParams.set("num", "10");
+      url.searchParams.set("num", Math.min(maxResults, 10).toString()); // Google limite à 10 par requête
 
       const res = await fetch(url.toString());
       const data = await res.json();
@@ -124,7 +222,29 @@ export const GET = withRateLimit(
         return [];
       }
 
-      return (data as any).items?.map((item: any) => {
+      const items = (data as any).items || [];
+      
+      // Si on veut plus de 10 résultats, faire une deuxième requête avec start=11
+      if (maxResults > 10 && items.length === 10) {
+        const url2 = new URL("https://customsearch.googleapis.com/customsearch/v1");
+        url2.searchParams.set("key", process.env.GOOGLE_API_KEY!);
+        url2.searchParams.set("cx", process.env.GOOGLE_CX!);
+        url2.searchParams.set("q", query);
+        url2.searchParams.set("num", Math.min(maxResults - 10, 10).toString());
+        url2.searchParams.set("start", "11");
+        
+        try {
+          const res2 = await fetch(url2.toString());
+          const data2 = await res2.json();
+          if (res2.ok && !(data2 as any).error && (data2 as any).items) {
+            items.push(...(data2 as any).items);
+          }
+        } catch (e) {
+          console.warn("⚠️ [API] Erreur lors de la deuxième requête Google:", e);
+        }
+      }
+
+      return items.map((item: any) => {
         // Extraire le nombre de portions depuis le titre et snippet
         const fullText = `${item.title || ""} ${item.snippet || ""}`;
         const servings = extractServingsFromText(fullText);
@@ -138,9 +258,9 @@ export const GET = withRateLimit(
             null,
           snippet: item.snippet,
           source: item.displayLink,
-          servings: servings || undefined,
+          servings: servings || undefined, // undefined si non trouvé
         };
-      }) ?? [];
+      });
     };
 
     // Mapper les filtres vers des termes de recherche Google (normalisé en minuscules)
@@ -188,79 +308,44 @@ export const GET = withRateLimit(
       .filter(Boolean)
       .join(" ");
 
-      if (ingredientsArray.length > 0) {
-        // Stratégie 1 : Recherche avec les 2-3 premiers ingrédients (priorité aux aliments préférés)
-        const nombreIngredients = Math.min(ingredientsArray.length, 3);
-        const ingredientsPrincipaux = ingredientsArray.slice(0, nombreIngredients);
-        let q1 = `recette ${ingredientsPrincipaux.join(" ")}`;
-        
-        // Exclure explicitement les pages de listes dans la requête Google
-        q1 += " -\"10 recettes\" -\"20 recettes\" -\"5 recettes\" -\"liste de\" -\"top 10\" -\"meilleures recettes\"";
-        
-        if (budgetParam) {
-          q1 += " économique pas cher";
-        }
-        if (filterQueryTerms) {
-          q1 += ` ${filterQueryTerms}`;
-        }
-      
-      console.log("🔎 [API] Recherche principale:", q1);
-      const results1 = await performGoogleSearch(q1);
-      results1.forEach(item => {
-        if (!seenUrls.has(item.url)) {
-          allItems.push(item);
-          seenUrls.add(item.url);
-        }
-      });
-      console.log(`✅ [API] Recherche principale: ${results1.length} résultat(s), ${allItems.length} unique(s)`);
-
-      // Stratégie 2 : Si on a plus de 3 ingrédients, faire une recherche avec d'autres ingrédients
-      if (ingredientsArray.length > 3) {
-        const autresIngredients = ingredientsArray.slice(3, 6); // Prendre les 3 suivants
-        if (autresIngredients.length > 0) {
-          let q2 = `recette ${autresIngredients.join(" ")}`;
-          
-          // Exclure explicitement les pages de listes dans la requête Google
-          q2 += " -\"10 recettes\" -\"20 recettes\" -\"5 recettes\" -\"liste de\" -\"top 10\" -\"meilleures recettes\"";
-          
-          if (budgetParam) {
-            q2 += " économique pas cher";
-          }
-          if (filterQueryTerms) {
-            q2 += ` ${filterQueryTerms}`;
-          }
-          
-          console.log("🔎 [API] Recherche secondaire:", q2);
-          const results2 = await performGoogleSearch(q2);
-          results2.forEach(item => {
-            if (!seenUrls.has(item.url)) {
-              allItems.push(item);
-              seenUrls.add(item.url);
-            }
-          });
-          console.log(`✅ [API] Recherche secondaire: ${results2.length} résultat(s), ${allItems.length} unique(s) total`);
-        }
-      }
+    // Stratégie optimisée : Recherche ciblée pour des RECETTES INDIVIDUELLES uniquement
+    // On cherche spécifiquement des recettes, pas des listes
+    let query = "";
+    
+    if (ingredientsArray.length > 0) {
+      // Utiliser les 2-3 premiers ingrédients pour une recherche plus précise
+      const nombreIngredients = Math.min(ingredientsArray.length, 3);
+      const ingredientsPrincipaux = ingredientsArray.slice(0, nombreIngredients);
+      // Forcer une recette spécifique avec "comment faire" ou "ingrédients"
+      query = `"recette" ${ingredientsPrincipaux.join(" ")} "ingrédients" "préparation"`;
     } else {
-      // Si pas d'ingrédients, recherche générique avec filtres
-      let q = "recette";
-      
-      // Exclure explicitement les pages de listes dans la requête Google
-      q += " -\"10 recettes\" -\"20 recettes\" -\"5 recettes\" -\"liste de\" -\"top 10\" -\"meilleures recettes\" -\"repas à rabais\"";
-      
-      if (filterQueryTerms) {
-        q += ` ${filterQueryTerms}`;
-      } else {
-        q += " québécoise";
-      }
-      if (budgetParam) {
-        q += " économique pas cher";
-      }
-      console.log("🔎 [API] Recherche générique (sans ingrédients):", q);
-      const results = await performGoogleSearch(q);
-      allItems.push(...results);
-      console.log(`✅ [API] Recherche générique: ${results.length} résultat(s)`);
+      // Sans ingrédients, chercher des recettes avec des termes qui indiquent une recette complète
+      query = '"recette" "ingrédients" "préparation"';
     }
+    
+    // Ajouter les filtres de type de repas si fourni
+    if (filterQueryTerms) {
+      query += ` ${filterQueryTerms}`;
+    }
+    
+    // Exclure TOUTES les pages de listes/compilations de manière très agressive
+    query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"liste de" -"top 10" -"meilleures recettes" -"compilation" -"galerie" -"repas à rabais" -"repas à prix réduit" -"recettes à petits prix" -"astuces" -"conseils" -"trucs" -"façons" -"manières" -"projet" -"expérience" -"expérience culinaire" -"commerce" -"fait maison" -"lequel" -"comparaison" -"cuisine de groupe" -"restes" -"recettes du québec"';
+    
+    // Ajouter budget si nécessaire
+    if (budgetParam) {
+      query += ' "économique" "pas cher"';
+    }
+    
+    // Rechercher 20 recettes pour avoir plus de choix
+    console.log("🔎 [API] Recherche ciblée pour recettes individuelles:", query);
+    const results = await performGoogleSearch(query, 20);
+    results.forEach((item: any) => {
+      if (!seenUrls.has(item.url)) {
+        allItems.push(item);
+        seenUrls.add(item.url);
+      }
+    });
+    console.log(`✅ [API] ${results.length} recette(s) trouvée(s), ${allItems.length} unique(s)`);
 
     console.log(`📊 [API] ${ingredientsArray.length} ingrédient(s) total, ${allItems.length} recette(s) unique(s) trouvée(s)`);
 
@@ -286,10 +371,14 @@ export const GET = withRateLimit(
       "kraftrecipes.com",
       "cookpad.com",
       "yummly.com",
+      "recettes.qc.ca", // Site qui retourne souvent des compilations
+      "lesgourmandisesdisa.com", // Site qui retourne des projets/articles
+      "5ingredients15minutes.com", // Site qui retourne des articles de comparaison
     ];
     
     /**
      * Fonction robuste pour détecter les pages de listes (pas des recettes individuelles)
+     * Version renforcée pour filtrer plus agressivement les compilations
      */
     const isListPage = (item: any): boolean => {
       if (!item.title && !item.snippet) return false;
@@ -298,53 +387,76 @@ export const GET = withRateLimit(
       const snippetLower = (item.snippet || "").toLowerCase();
       const fullText = `${titleLower} ${snippetLower}`;
       
-      // 1. Détecter les nombres suivis de "recettes", "repas", "idées", etc.
-      // Exemples: "5 recettes facile", "20 repas à la mijoteuse", "10 idées"
+      // 1. Détecter les nombres suivis de "recettes", "repas", "idées", etc. (plus agressif)
       const numberListPatterns = [
-        /\b(\d+)\s+(recettes?|repas|idées?|astuces?|conseils?|trucs?|plats?|menus?)\b/i,
-        /\b(\d+)\s+(recettes?|repas|idées?)\s+(facile|rapide|économique|à\s+rabais|à\s+prix\s+réduit)/i,
-        /\b(\d+)\s+(recettes?|repas)\s+(pour|de|avec)/i,
+        /\b(\d+)\s+(recettes?|repas|idées?|astuces?|conseils?|trucs?|plats?|menus?|suggestions?)\b/i,
+        /\b(\d+)\s+(recettes?|repas|idées?)\s+(facile|rapide|économique|à\s+rabais|à\s+prix\s+réduit|bon\s+marché)/i,
+        /\b(\d+)\s+(recettes?|repas)\s+(pour|de|avec|sans)/i,
+        /\b(\d+)\s+(recettes?|repas)\s+(à\s+)?(la\s+)?(mijoteuse|four|grill|poêle)/i,
       ];
       
       if (numberListPatterns.some(pattern => pattern.test(fullText))) {
         return true;
       }
       
-      // 2. Détecter les patterns de listes avec mots-clés
+      // 2. Détecter les patterns de listes avec mots-clés (renforcé)
       const listKeywords = [
-        // Patterns avec "meilleures", "top", "liste"
-        /\b(meilleures?|top|liste|sélection|collection)\s+(de\s+)?(\d+\s+)?(recettes?|repas|idées?|plats?)/i,
+        // Patterns avec "meilleures", "top", "liste", "compilation"
+        /\b(meilleures?|top|liste|sélection|collection|compilation|galerie)\s+(de\s+)?(\d+\s+)?(recettes?|repas|idées?|plats?)/i,
         /\b(top|meilleures?)\s+(\d+)\s+(recettes?|repas|idées?)/i,
+        /\b(compilation|galerie)\s+(de\s+)?(\d+\s+)?(recettes?|repas)/i,
         
-        // Patterns avec "recettes" + adjectifs de liste
-        /recettes?\s+(à\s+)?(petits?\s+prix|économiques?|pas\s+cher|budget|faciles?|rapides?)/i,
-        /recettes?\s+(de|pour)\s+(la\s+)?(semaine|mois|famille)/i,
+        // Patterns avec "recettes" + adjectifs de liste (plus complet)
+        /recettes?\s+(à\s+)?(petits?\s+prix|économiques?|pas\s+cher|budget|faciles?|rapides?|simples?|bon\s+marché)/i,
+        /recettes?\s+(de|pour)\s+(la\s+)?(semaine|mois|famille|hiver|été)/i,
+        /recettes?\s+(pour|à)\s+(économiser|réduire|diminuer)/i,
         
-        // Patterns avec "repas" + nombre ou adjectifs
-        /(\d+\s+)?repas\s+(à\s+)?(rabais|prix\s+réduit|économique|facile|rapide)/i,
+        // Patterns avec "repas" + nombre ou adjectifs (renforcé)
+        /(\d+\s+)?repas\s+(à\s+)?(rabais|prix\s+réduit|économique|facile|rapide|bon\s+marché)/i,
         /repas\s+(de|pour)\s+(la\s+)?(semaine|mois)/i,
+        /(\d+\s+)?repas\s+(pour|à)\s+(économiser|réduire)/i,
         
-        // Patterns avec "mijoteuse" + nombre
+        // Patterns avec "mijoteuse" + nombre (renforcé)
         /(\d+)\s+(recettes?|repas)\s+(à\s+la\s+)?mijoteuse/i,
         /mijoteuse\s*:?\s*(\d+)\s+(recettes?|repas|idées?)/i,
+        /(\d+)\s+(recettes?|repas)\s+(de|pour)\s+(la\s+)?mijoteuse/i,
         
-        // Patterns avec "astuces", "conseils", "trucs"
-        /\b(astuces?|conseils?|trucs?)\s+(pour|de|sur)\s+(bien\s+manger|économiser|cuisiner)/i,
+        // Patterns avec "astuces", "conseils", "trucs" (renforcé)
+        /\b(astuces?|conseils?|trucs?)\s+(pour|de|sur)\s+(bien\s+manger|économiser|cuisiner|manger\s+mieux)/i,
         /\b(\d+)\s+(astuces?|conseils?|trucs?)\s+(pour|de)/i,
         
-        // Patterns généraux de listes
+        // Patterns généraux de listes (renforcé)
         /bien\s+manger\s+sans\s+trop\s+dépenser/i,
         /(\d+)\s+(façons|manières)\s+(de|pour)/i,
+        /manger\s+(bien|mieux)\s+(pour|avec|sans)/i,
         
-        // Patterns avec "à rabais", "à prix réduit"
+        // Patterns avec "à rabais", "à prix réduit" (renforcé)
         /(\d+)\s+(recettes?|repas)\s+à\s+(rabais|prix\s+réduit)/i,
-        /recettes?\s+à\s+(rabais|prix\s+réduit)/i,
+        /recettes?\s+à\s+(rabais|prix\s+réduit|petits?\s+prix)/i,
+        /(\d+)\s+(recettes?|repas)\s+(à\s+)?(petits?\s+prix|bon\s+marché)/i,
         
-        // Patterns avec "facile", "rapide" + nombre
+        // Patterns avec "facile", "rapide" + nombre (renforcé)
         /(\d+)\s+(recettes?|repas)\s+(facile|rapide|simple)/i,
+        /(\d+)\s+(recettes?|repas)\s+(faciles?|rapides?|simples?)\s+(pour|de|à)/i,
         
         // Patterns avec "pour" + nombre + "personnes" (souvent des listes)
         /(\d+)\s+(recettes?|repas|idées?)\s+pour\s+(\d+)\s+personnes/i,
+        
+        // Nouveaux patterns pour détecter les compilations
+        /(découvrez|voici|consultez|explorez)\s+(\d+)\s+(recettes?|repas|idées?)/i,
+        /(\d+)\s+(recettes?|repas)\s+(à\s+)?(essayer|tester|découvrir)/i,
+        /(nos|les|ces)\s+(\d+)\s+(recettes?|repas|idées?)/i,
+        
+        // NOUVEAUX PATTERNS pour détecter les articles/projets/comparaisons
+        /\b(projet|expérience|expérience\s+culinaire)\s+(de|du|des?|canadien|québécois)/i,
+        /\b(projet|expérience)\s+.*?(culinaire|canadien|québécois)/i,
+        /(commerce|fait\s+maison|lequel|comparaison|comparer)\s+(revient|coûte|moins\s+cher|plus\s+cher)/i,
+        /(du|le|la)\s+(commerce|fait\s+maison)\s+(ou|ou\s+lequel)/i,
+        /(lequel|quelle)\s+(revient|coûte|est)\s+(le|la|moins|plus)\s+(cher|économique)/i,
+        /(petits?\s+prix|cuisine\s+de\s+groupe|restes)\s*[|]/i, // Titre avec "|" suivi d'un site
+        /recettes?\s+(du|de)\s+québec/i, // "Recettes du Québec" (souvent compilation)
+        /(apprendre|apprendre\s+à|planifier|adapter)\s+(les?\s+)?(portions|recettes?|repas)/i, // Articles éducatifs
+        /(bien|mieux)\s+(planifier|adapter|cuisiner|manger)/i,
       ];
       
       if (listKeywords.some(pattern => pattern.test(fullText))) {
@@ -353,7 +465,7 @@ export const GET = withRateLimit(
       
       // 3. Détecter les titres qui commencent par un nombre (souvent des listes)
       // Exemples: "5 recettes...", "20 repas..."
-      if (/^\d+\s+(recettes?|repas|idées?|astuces?|conseils?)/i.test(titleLower)) {
+      if (/^\d+\s+(recettes?|repas|idées?|astuces?|conseils?|suggestions?)/i.test(titleLower)) {
         return true;
       }
       
@@ -362,12 +474,51 @@ export const GET = withRateLimit(
         return true;
       }
       
-      // 5. Détecter les snippets qui mentionnent explicitement plusieurs recettes
+      // 5. Détecter les snippets qui mentionnent explicitement plusieurs recettes (renforcé)
       if (snippetLower.match(/\b(\d+)\s+(recettes?|repas|idées?)\b/)) {
-        // Mais seulement si c'est au début ou si c'est clairement une liste
-        if (snippetLower.match(/^(découvrez|voici|consultez)\s+(\d+)\s+(recettes?|repas|idées?)/i)) {
+        // Si le snippet commence par "découvrez", "voici", "consultez" suivi d'un nombre, c'est une liste
+        if (snippetLower.match(/^(découvrez|voici|consultez|explorez|nos|les)\s+(\d+)\s+(recettes?|repas|idées?)/i)) {
           return true;
         }
+        // Si le snippet contient "compilation", "galerie", "sélection" avec un nombre, c'est une liste
+        if (snippetLower.match(/\b(compilation|galerie|sélection|collection)\s+.*?(\d+)\s+(recettes?|repas)/i)) {
+          return true;
+        }
+      }
+      
+      // 6. Détecter les URLs qui suggèrent des listes (ex: /recettes/, /liste/, /top-10/)
+      if (item.url) {
+        const urlLower = item.url.toLowerCase();
+        const listUrlPatterns = [
+          /\/recettes\/$/,
+          /\/liste/,
+          /\/top-?\d+/,
+          /\/\d+-recettes/,
+          /\/compilation/,
+          /\/galerie/,
+          /recettes\.qc\.ca/i, // Site "recettes.qc.ca" souvent des compilations
+        ];
+        if (listUrlPatterns.some(pattern => pattern.test(urlLower))) {
+          return true;
+        }
+      }
+      
+      // 7. Détecter les titres qui contiennent "|" (pipe) - souvent des pages de compilation
+      if (titleLower.includes("|")) {
+        // Si le titre contient "|" et des mots-clés de compilation
+        if (/(petits?\s+prix|cuisine\s+de\s+groupe|restes|recettes?\s+du\s+québec)/i.test(titleLower)) {
+          return true;
+        }
+      }
+      
+      // 8. Détecter les titres qui sont des questions de comparaison
+      if (/^(du|le|la|quel|quelle|lequel|lesquels)\s+(commerce|fait\s+maison|revient|coûte)/i.test(titleLower)) {
+        return true;
+      }
+      
+      // 9. Détecter les snippets qui parlent de "planifier", "adapter", "apprendre" (articles éducatifs)
+      if (snippetLower.match(/(apprendre|planifier|adapter)\s+(les?\s+)?(portions|recettes?|repas)/i)) {
+        return true;
       }
       
       return false;
@@ -415,7 +566,8 @@ export const GET = withRateLimit(
 
       console.log(`🚫 [API] Filtrage des recettes contenant: ${searchTerms.join(", ")}`);
       
-      filteredItems = allItems.filter(item => {
+      // CORRECTION : Filtrer filteredByDomain, pas allItems !
+      filteredItems = filteredByDomain.filter(item => {
         const titleLower = item.title.toLowerCase();
         const snippetLower = (item.snippet || "").toLowerCase();
         const textToSearch = `${titleLower} ${snippetLower}`;
@@ -428,10 +580,10 @@ export const GET = withRateLimit(
         return !containsAllergy;
       });
 
-      console.log(`✅ [API] ${filteredItems.length} recette(s) après filtrage des allergies (${allItems.length - filteredItems.length} exclue(s))`);
+      console.log(`✅ [API] ${filteredItems.length} recette(s) après filtrage des allergies (${filteredByDomain.length - filteredItems.length} exclue(s))`);
     }
 
-    // Limiter à 20 résultats maximum pour éviter une réponse trop lourde
+    // Garder jusqu'à 20 recettes pour avoir plus de choix
     let items = filteredItems.slice(0, 20);
 
     // 4️⃣ — Estimer le coût de chaque recette (approche rapide avec GPT ou règles)
@@ -452,59 +604,129 @@ export const GET = withRateLimit(
       items.map(async (item) => {
         try {
           const result = await estimateRecipeCost(item.title, item.snippet || "");
+          
+          // S'assurer que les portions sont bien présentes (ré-extraire si nécessaire)
+          let servings = item.servings;
+          if (!servings || servings === undefined) {
+            const fullText = `${item.title || ""} ${item.snippet || ""}`;
+            servings = extractServingsFromText(fullText) || undefined;
+          }
+          
           return {
             ...item,
             estimatedCost: result.estimatedCost,
             costSource: result.source, // "gpt" ou "rules"
+            servings: servings, // S'assurer que servings est inclus
           };
         } catch (error) {
           logger.warn("Erreur lors de l'estimation du coût d'une recette", {
             error: error instanceof Error ? error.message : String(error),
             title: item.title,
           });
+          
+          // Ré-extraire les portions même en cas d'erreur
+          let servings = item.servings;
+          if (!servings || servings === undefined) {
+            const fullText = `${item.title || ""} ${item.snippet || ""}`;
+            servings = extractServingsFromText(fullText) || undefined;
+          }
+          
           return {
             ...item,
             estimatedCost: 10.00, // Prix moyen par défaut
             costSource: "fallback",
+            servings: servings,
           };
         }
       })
     );
 
-    // Filtrer par budget si nécessaire
+    // Filtrer par budget si nécessaire, puis sélectionner aléatoirement
     if (budget && budget > 0) {
-      items = itemsWithCost
-        .filter((item) => {
-          if (item.estimatedCost === null) {
-            // Si on n'a pas pu estimer le coût, on garde la recette (fallback)
-            return true;
-          }
-          return item.estimatedCost <= budget;
-        })
-        .sort((a, b) => {
-          // Trier par coût croissant (moins cher en premier)
-          const costA = a.estimatedCost ?? Infinity;
-          const costB = b.estimatedCost ?? Infinity;
-          return costA - costB;
-        });
+      // Filtrer les recettes qui respectent le budget
+      const itemsInBudget = itemsWithCost.filter((item) => {
+        if (item.estimatedCost === null || item.estimatedCost === undefined) {
+          // Si on n'a pas pu estimer le coût, on garde la recette (fallback)
+          return true;
+        }
+        return item.estimatedCost <= budget;
+      });
 
-      logger.info("Recettes filtrées par budget", {
+      // Trier par coût croissant (moins cher en premier)
+      itemsInBudget.sort((a, b) => {
+        const costA = a.estimatedCost ?? Infinity;
+        const costB = b.estimatedCost ?? Infinity;
+        return costA - costB;
+      });
+
+      // Sélectionner aléatoirement entre 10 et 15 recettes parmi celles qui respectent le budget
+      const minReturn = 10;
+      const maxReturn = 15;
+      
+      if (itemsInBudget.length >= minReturn) {
+        // Mélanger et prendre entre 10 et 15 recettes
+        const shuffled = [...itemsInBudget].sort(() => Math.random() - 0.5);
+        const count = Math.min(maxReturn, itemsInBudget.length);
+        items = shuffled.slice(0, count);
+      } else {
+        // Si on a moins de 10, on retourne toutes
+        items = itemsInBudget;
+      }
+
+      logger.info("Recettes filtrées par budget et sélectionnées aléatoirement", {
         budget,
         recettesAvant: itemsWithCost.length,
-        recettesApres: items.length,
+        recettesDansBudget: itemsInBudget.length,
+        recettesRetournees: items.length,
       });
     } else {
-      items = itemsWithCost;
+      // Pas de budget, sélectionner aléatoirement entre 10 et 15 recettes
+      const minReturn = 10;
+      const maxReturn = 15;
+      
+      if (itemsWithCost.length >= minReturn) {
+        // Mélanger et prendre entre 10 et 15 recettes
+        const shuffled = [...itemsWithCost].sort(() => Math.random() - 0.5);
+        const count = Math.min(maxReturn, itemsWithCost.length);
+        items = shuffled.slice(0, count);
+      } else {
+        // Si on a moins de 10, on retourne toutes
+        items = itemsWithCost;
+      }
+      
+      logger.info("Recettes sélectionnées aléatoirement (sans filtre budget)", {
+        recettesAvant: itemsWithCost.length,
+        recettesRetournees: items.length,
+      });
     }
 
-    // 3️⃣ — Sauvegarder dans le cache (conservation infinie)
-    // Note: On ne cache pas les coûts car ils peuvent changer
-    const itemsForCache = items.map(({ estimatedCost, ingredients, ...item }) => item);
+    // 3️⃣ — Enrichir le cache (fusion avec les résultats existants)
+    // Note: On ne cache pas les coûts car ils peuvent changer, mais on garde les portions
+    // merge=true : fusionne avec le cache existant au lieu de le remplacer
+    const itemsForCache = items.map(({ estimatedCost, ingredients, ...item }) => ({
+      ...item,
+      servings: item.servings, // S'assurer que servings est inclus dans le cache
+    }));
     if (itemsForCache.length > 0) {
-      await saveCache(cacheKey, itemsForCache);
-      console.log("💾 [API] Résultats sauvegardés dans le cache (conservation infinie)");
+      await saveCache(cacheKey, itemsForCache, true); // merge=true pour enrichissement progressif
+      console.log("💾 [API] Cache enrichi avec de nouvelles recettes (fusion avec existantes)");
     }
 
+    // Log pour vérifier que les prix et portions sont bien inclus
+    if (items.length > 0) {
+      console.log("💰 [API] Exemple de recette avec prix et portions:", {
+        title: items[0].title,
+        estimatedCost: items[0].estimatedCost,
+        hasCost: items[0].estimatedCost !== null && items[0].estimatedCost !== undefined,
+        servings: items[0].servings,
+        hasServings: items[0].servings !== null && items[0].servings !== undefined && items[0].servings > 0
+      });
+      
+      // Log pour toutes les recettes qui ont des portions
+      const withServings = items.filter((item: any) => item.servings && item.servings > 0);
+      console.log(`📊 [API] ${withServings.length}/${items.length} recette(s) avec portions détectées`);
+    }
+    
     return NextResponse.json({ items, cached: false });
   },
   async () => {

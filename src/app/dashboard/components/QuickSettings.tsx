@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Save, Settings, Calendar, UtensilsCrossed, Sparkles, Loader2, Check, X, Users } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Save, Settings, Calendar, UtensilsCrossed, Loader2, Check, X, Users, Star } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -43,7 +43,6 @@ export default function QuickSettings() {
   const [selectionModalOpen, setSelectionModalOpen] = useState(false);
   const [generatedRecipes, setGeneratedRecipes] = useState<any[]>([]);
   const [selectedRecipeUrls, setSelectedRecipeUrls] = useState<Set<string>>(new Set());
-  const [detailedCosts, setDetailedCosts] = useState<Map<string, { cost: number; loading: boolean; servings?: number; costPerServing?: number }>>(new Map());
 
   useEffect(() => {
     loadData();
@@ -156,8 +155,11 @@ export default function QuickSettings() {
       
       const minRecettesParType = nbJours;
       const minRecettesTotal = nbJours * repasTypes.length;
+      // Toujours générer au moins 15-20 recettes pour offrir de la variété, même si l'utilisateur en demande moins
+      const targetRecettesParType = Math.max(minRecettesParType * 2, 15); // Au moins 15 par type pour avoir du choix
+      const targetRecettesTotal = Math.max(minRecettesTotal * 2, 20); // Au moins 20 au total pour avoir du choix
       
-      console.log(`🍳 Génération de ${minRecettesTotal} recettes minimum (${minRecettesParType} par type)`);
+      console.log(`🍳 Génération de ${targetRecettesTotal} recettes cibles (minimum ${minRecettesTotal} demandées, ${targetRecettesParType} par type)`);
       
       // Construire les filtres de base (sans les types de repas)
       const baseFilters: string[] = [];
@@ -185,10 +187,10 @@ export default function QuickSettings() {
           const data = await response.json();
           const recipes = data.items || [];
           
-          // Prendre au moins minRecettesParType recettes pour ce type
+          // Prendre au moins targetRecettesParType recettes pour ce type (pour offrir de la variété)
           let addedForType = 0;
           for (const recipe of recipes) {
-            if (!seenUrls.has(recipe.url) && addedForType < minRecettesParType * 2) {
+            if (!seenUrls.has(recipe.url) && addedForType < targetRecettesParType) {
               seenUrls.add(recipe.url);
               allRecipes.push({
                 ...recipe,
@@ -201,7 +203,7 @@ export default function QuickSettings() {
           console.log(`✅ ${addedForType} recettes trouvées pour ${typeRepas}`);
           
           // Si on n'a pas assez, faire une recherche supplémentaire sans filtre de type
-          if (addedForType < minRecettesParType) {
+          if (addedForType < targetRecettesParType) {
             const additionalSearchParams = new URLSearchParams({
               ingredients: "",
               ...(respecterBudget && budget > 0 ? { budget: budget.toString() } : {}),
@@ -215,7 +217,7 @@ export default function QuickSettings() {
               const additionalRecipes = additionalData.items || [];
               
               for (const recipe of additionalRecipes) {
-                if (!seenUrls.has(recipe.url) && addedForType < minRecettesParType * 2) {
+                if (!seenUrls.has(recipe.url) && addedForType < targetRecettesParType) {
                   seenUrls.add(recipe.url);
                   allRecipes.push({
                     ...recipe,
@@ -229,12 +231,41 @@ export default function QuickSettings() {
         }
       }
       
-      // Limiter au nombre nécessaire (avec un peu de marge pour avoir du choix)
-      const recipesToShow = allRecipes.slice(0, Math.max(minRecettesTotal * 2, allRecipes.length));
+      // Filtrer les desserts (les utilisateurs veulent des repas, pas des desserts)
+      const recipesWithoutDesserts = allRecipes.filter(recipe => {
+        const titleLower = (recipe.title || "").toLowerCase();
+        const snippetLower = (recipe.snippet || "").toLowerCase();
+        const fullText = `${titleLower} ${snippetLower}`;
+        
+        // Exclure si c'est un dessert
+        const dessertKeywords = ["dessert", "gâteau", "gateau", "tarte", "biscuit", "cookie", "muffin", "brownie", "pudding", "crème brûlée", "tiramisu", "cheesecake", "sorbet", "glace", "sorbet", "panna cotta"];
+        const isDessert = dessertKeywords.some(keyword => fullText.includes(keyword));
+        
+        return !isDessert;
+      });
+      
+      console.log(`🚫 ${allRecipes.length - recipesWithoutDesserts.length} dessert(s) filtré(s)`);
+      
+      // Toujours montrer au moins targetRecettesTotal recettes pour offrir de la variété
+      // Mais ne pas dépasser ce qu'on a trouvé
+      const recipesToShow = recipesWithoutDesserts.slice(0, Math.max(targetRecettesTotal, recipesWithoutDesserts.length));
       
       if (recipesToShow.length < minRecettesTotal) {
         toast.warning(`Seulement ${recipesToShow.length} recettes trouvées sur ${minRecettesTotal} demandées`);
       }
+      
+      // Vérifier que les recettes ont bien un estimatedCost et servings
+      console.log("📊 [QuickSettings] Recettes générées:", recipesToShow.map(r => ({
+        title: r.title,
+        estimatedCost: r.estimatedCost,
+        hasCost: r.estimatedCost !== null && r.estimatedCost !== undefined,
+        servings: r.servings,
+        hasServings: r.servings !== null && r.servings !== undefined && r.servings > 0
+      })));
+      
+      // Log pour toutes les recettes qui ont des portions
+      const withServings = recipesToShow.filter(r => r.servings && r.servings > 0);
+      console.log(`📊 [QuickSettings] ${withServings.length}/${recipesToShow.length} recette(s) avec portions détectées`);
       
       // Ouvrir la modal de sélection avec les recettes générées
       setGeneratedRecipes(recipesToShow);
@@ -463,7 +494,7 @@ export default function QuickSettings() {
                   onChange={(e) => setInspiration(e.target.checked)}
                   className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
                 />
-                <Sparkles className="w-3 h-3 text-orange-500" />
+                <Star className="w-3 h-3 text-orange-500" />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Inspiration</span>
               </label>
             </div>
@@ -496,8 +527,13 @@ export default function QuickSettings() {
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 {(() => {
                   const repasCount = [dejeuner, diner, souper].filter(Boolean).length;
-                  const totalRecettes = nbJours * repasCount;
-                  return `${totalRecettes} recette${totalRecettes > 1 ? "s" : ""} minimum seront générées`;
+                  const minRecettes = nbJours * repasCount;
+                  // Le système génère entre 10 et 15 recettes, mais on garantit au moins le minimum demandé
+                  if (minRecettes >= 10) {
+                    return `10 à 15 recettes seront générées (minimum ${minRecettes} demandées)`;
+                  } else {
+                    return `10 à 15 recettes seront générées`;
+                  }
                 })()}
               </p>
               {respecterBudget && budget > 0 && (
@@ -534,36 +570,74 @@ export default function QuickSettings() {
                 ? recipe.estimatedCost 
                 : null;
               
-              // Vérifier si on a un calcul détaillé avec plus d'infos (servings, coût précis)
-              const detailedCost = detailedCosts.get(recipe.url);
-              const finalCost = detailedCost?.cost && detailedCost.cost > 0 
-                ? detailedCost.cost 
-                : cost;
-              const finalServings = detailedCost?.servings || recipe.servings || null;
+              const finalCost = cost;
+              // Préserver les portions de manière robuste
+              let finalServings: number | null = null;
+              if (recipe.servings !== null && recipe.servings !== undefined) {
+                if (typeof recipe.servings === 'number' && recipe.servings > 0 && recipe.servings <= 50) {
+                  finalServings = recipe.servings;
+                } else if (typeof recipe.servings === 'string') {
+                  const parsed = parseInt(recipe.servings, 10);
+                  if (!isNaN(parsed) && parsed > 0 && parsed <= 50) {
+                    finalServings = parsed;
+                  }
+                }
+              }
+              
+              console.log("📤 [QuickSettings] Portions pour recette:", {
+                title: recipe.title,
+                originalServings: recipe.servings,
+                finalServings: finalServings,
+                servingsType: typeof recipe.servings
+              });
               
               if (finalCost !== null && finalCost > 0) {
                 totalCost += finalCost;
               }
 
+              // S'assurer que les valeurs null/undefined sont correctement gérées
+              const payload = {
+                titre: recipe.title,
+                url: recipe.url,
+                image: recipe.image || null,
+                snippet: recipe.snippet || null,
+                  source: recipe.source || null,
+                estimatedCost: finalCost !== null && finalCost !== undefined ? finalCost : null,
+                servings: finalServings !== null && finalServings !== undefined ? finalServings : null,
+              };
+              
+              console.log("📤 [Frontend] Envoi de la recette:", payload);
+              
               const response = await fetch("/api/recettes-semaine", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  titre: recipe.title,
-                  url: recipe.url,
-                  image: recipe.image || null,
-                  snippet: recipe.snippet || null,
-                  source: recipe.source || null,
-                  estimatedCost: finalCost,
-                  servings: finalServings,
-                }),
+                body: JSON.stringify(payload),
               });
               
               if (response.ok) {
                 savedCount++;
               } else {
-                const errorData = await response.json();
-                if (response.status !== 409) {
+                // 409 = recette déjà existante, ce n'est pas une vraie erreur
+                if (response.status === 409) {
+                  // Ne pas compter comme une erreur, juste ignorer
+                  console.log("ℹ️ [Frontend] Recette déjà existante, ignorée");
+                } else {
+                  // Pour les autres erreurs, logger et compter
+                  let errorData;
+                  try {
+                    const text = await response.text();
+                    try {
+                      errorData = JSON.parse(text);
+                    } catch {
+                      errorData = { error: text };
+                    }
+                  } catch (e) {
+                    errorData = { error: "Erreur inconnue" };
+                  }
+                  console.error("❌ [Frontend] Erreur lors de la sauvegarde:", {
+                    status: response.status,
+                    error: errorData,
+                  });
                   errorCount++;
                 }
               }
@@ -622,9 +696,25 @@ export default function QuickSettings() {
           <AnimatePresence>
             {generatedRecipes.map((recipe, index) => {
               const isSelected = selectedRecipeUrls.has(recipe.url);
-              const cost = recipe.estimatedCost && typeof recipe.estimatedCost === 'number' 
+              // Extraire le coût - vérifier plusieurs formats possibles
+              const cost = (recipe.estimatedCost !== null && recipe.estimatedCost !== undefined && typeof recipe.estimatedCost === 'number' && recipe.estimatedCost > 0)
                 ? recipe.estimatedCost 
+                : (recipe.cost !== null && recipe.cost !== undefined && typeof recipe.cost === 'number' && recipe.cost > 0)
+                ? recipe.cost
                 : null;
+              
+              // Log pour déboguer
+              if (index === 0) {
+                console.log("🔍 [QuickSettings] Première recette:", {
+                  title: recipe.title,
+                  estimatedCost: recipe.estimatedCost,
+                  cost: recipe.cost,
+                  finalCost: cost,
+                  servings: recipe.servings,
+                  servingsType: typeof recipe.servings,
+                  allKeys: Object.keys(recipe)
+                });
+              }
               
               return (
                 <motion.div
@@ -693,94 +783,47 @@ export default function QuickSettings() {
                         <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {recipe.source || "Source inconnue"}
                         </span>
-                        {recipe.servings && recipe.servings > 0 && (
-                          <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
-                            <Users className="w-3 h-3" />
-                            {recipe.servings} portion{recipe.servings > 1 ? "s" : ""}
-                          </span>
-                        )}
+                        {(() => {
+                          // Vérifier servings de manière robuste (peut être number, string, ou null)
+                          const servingsNum = recipe.servings 
+                            ? (typeof recipe.servings === 'number' ? recipe.servings : parseInt(String(recipe.servings), 10))
+                            : null;
+                          const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
+                          
+                          return hasServings ? (
+                            <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                              <Users className="w-3 h-3" />
+                              {servingsNum} portion{servingsNum > 1 ? "s" : ""}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {cost !== null && cost > 0 && (
-                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 whitespace-nowrap">
-                            ~{cost.toFixed(2)}$
-                          </span>
-                        )}
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const detailedCost = detailedCosts.get(recipe.url);
-                            if (detailedCost?.loading) return;
-                            
-                            setDetailedCosts(prev => new Map(prev).set(recipe.url, { cost: 0, loading: true }));
-                            
-                            try {
-                              const response = await fetch("/api/recipes/detailed-cost", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ url: recipe.url }),
-                              });
+                        {cost !== null && cost !== undefined && cost > 0 ? (
+                          <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400 whitespace-nowrap bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
+                            {(() => {
+                              // Vérifier servings de manière robuste
+                              const servingsNum = recipe.servings 
+                                ? (typeof recipe.servings === 'number' ? recipe.servings : parseInt(String(recipe.servings), 10))
+                                : null;
+                              const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
                               
-                              if (response.ok) {
-                                const data = await response.json();
-                                const detailedData = data.data;
-                                setDetailedCosts(prev => new Map(prev).set(recipe.url, { 
-                                  cost: detailedData.totalCost, 
-                                  loading: false,
-                                  servings: detailedData.servings,
-                                  costPerServing: detailedData.costPerServing,
-                                }));
-                                
-                                const costMessage = detailedData.servings && detailedData.costPerServing
-                                  ? `${detailedData.totalCost.toFixed(2)}$ (${detailedData.costPerServing.toFixed(2)}$/portion pour ${detailedData.servings} portions)`
-                                  : `${detailedData.totalCost.toFixed(2)}$`;
-                                toast.success(`Coût détaillé : ${costMessage}`);
-                              } else {
-                                const errorData = await response.json();
-                                if (errorData.code === "ROBOTS_BLOCKED") {
-                                  toast.error("Ce site bloque l'extraction automatique. Consultez la recette directement.");
-                                } else {
-                                  toast.error("Impossible de calculer le coût détaillé");
-                                }
-                                setDetailedCosts(prev => {
-                                  const newMap = new Map(prev);
-                                  newMap.delete(recipe.url);
-                                  return newMap;
-                                });
-                              }
-                            } catch (error) {
-                              console.error("Erreur lors du calcul détaillé:", error);
-                              toast.error("Erreur lors du calcul");
-                              setDetailedCosts(prev => {
-                                const newMap = new Map(prev);
-                                newMap.delete(recipe.url);
-                                return newMap;
-                              });
-                            }
-                          }}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                          title="Calculer le coût détaillé (extraction légale des ingrédients)"
-                        >
-                          {detailedCosts.get(recipe.url)?.loading ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <>
-                              <Sparkles className="w-3 h-3" />
-                              Détail
-                            </>
-                          )}
-                        </button>
-                        {detailedCosts.get(recipe.url)?.cost && !detailedCosts.get(recipe.url)?.loading && (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                              {detailedCosts.get(recipe.url)!.cost.toFixed(2)}$
-                            </span>
-                            {detailedCosts.get(recipe.url)?.servings && detailedCosts.get(recipe.url)?.costPerServing && (
-                              <span className="text-xs text-blue-500 dark:text-blue-400">
-                                {detailedCosts.get(recipe.url)!.costPerServing!.toFixed(2)}$/portion
-                              </span>
-                            )}
-                          </div>
+                              return hasServings ? (
+                                <>
+                                  ~{(cost / servingsNum).toFixed(2)}$/portion
+                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                    ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                  </span>
+                                </>
+                              ) : (
+                                <>~{cost.toFixed(2)}$</>
+                              );
+                            })()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                            Prix non disponible
+                          </span>
                         )}
                       </div>
                     </div>

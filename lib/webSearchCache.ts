@@ -1,7 +1,7 @@
 import { prisma } from "./prisma";
 
-// Durée de cache en millisecondes (null = infini, les données sont conservées indéfiniment)
-// Pour activer l'expiration après 24h, utilisez: const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
+// Durée de cache en millisecondes (null = infini, conservation permanente)
+// Le cache s'enrichit progressivement au lieu d'être vidé
 const CACHE_DURATION_MS: number | null = null; // null = conservation infinie
 
 export interface CachedResult {
@@ -10,6 +10,7 @@ export interface CachedResult {
   image: string | null;
   snippet: string;
   source: string;
+  servings?: number;
 }
 
 /**
@@ -63,13 +64,34 @@ export async function getCachedResults(
  * Sauvegarde les résultats dans le cache
  * @param query - La requête de recherche
  * @param results - Les résultats à mettre en cache
+ * @param merge - Si true, fusionne avec les résultats existants au lieu de remplacer
  */
 export async function saveCache(
   query: string,
-  results: CachedResult[]
+  results: CachedResult[],
+  merge: boolean = false
 ): Promise<void> {
   try {
-    const resultsJson = JSON.stringify(results);
+    let resultsToSave = results;
+    
+    // Si merge = true, fusionner avec les résultats existants
+    if (merge) {
+      const existing = await getCachedResults(query);
+      if (existing && existing.length > 0) {
+        // Créer un Set des URLs existantes pour éviter les doublons
+        const existingUrls = new Set(existing.map(r => r.url));
+        
+        // Ajouter seulement les nouvelles recettes (pas déjà dans le cache)
+        const newResults = results.filter(r => !existingUrls.has(r.url));
+        
+        // Fusionner : anciennes + nouvelles
+        resultsToSave = [...existing, ...newResults];
+        
+        console.log(`🔄 [Cache] Fusion: ${existing.length} existantes + ${newResults.length} nouvelles = ${resultsToSave.length} total`);
+      }
+    }
+    
+    const resultsJson = JSON.stringify(resultsToSave);
 
     await prisma.webSearchCache.upsert({
       where: { query },
@@ -83,7 +105,7 @@ export async function saveCache(
       },
     });
     
-    console.log(`💾 [Cache] ${results.length} résultat(s) sauvegardés dans le cache pour:`, query.substring(0, 100));
+    console.log(`💾 [Cache] ${resultsToSave.length} résultat(s) sauvegardés dans le cache pour:`, query.substring(0, 100));
   } catch (error) {
     console.error("Erreur lors de la sauvegarde du cache:", error);
     // Ne pas faire échouer la requête si le cache échoue
