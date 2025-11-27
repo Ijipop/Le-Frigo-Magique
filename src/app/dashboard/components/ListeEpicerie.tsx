@@ -304,7 +304,7 @@ export default function ListeEpicerie() {
           onClose={resetForm}
           title={editingId ? "Modifier l'item" : "Ajouter un item"}
           onConfirm={handleConfirm}
-          variant="primary"
+          variant="default"
           confirmText={editingId ? "Modifier" : "Ajouter"}
           cancelText="Annuler"
         >
