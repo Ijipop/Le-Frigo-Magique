@@ -381,9 +381,9 @@ export default function FlyersSettings() {
                                                     {match.isEstimated ? "Rabais (approx.)" : "Rabais"}
                                                   </span>
                                                   <span className="text-sm font-bold text-orange-500">
-                                                    {typeof match.matchedItem.current_price === 'number'
+                                                    {match.matchedItem.current_price !== null && typeof match.matchedItem.current_price === 'number'
                                                       ? match.matchedItem.current_price.toFixed(2)
-                                                      : parseFloat(match.matchedItem.current_price.toString()).toFixed(2)}$
+                                                      : '0.00'}$
                                                   </span>
                                                 </div>
                                                 {match.savings && match.savings > 0 && (
@@ -397,25 +397,25 @@ export default function FlyersSettings() {
                                                 )}
                                               </div>
                                             );
-                                          } else if (hasCurrentPrice) {
+                                          } else if (hasCurrentPrice && match.matchedItem.current_price !== null) {
                                             return (
                                               <div className="flex flex-col items-end">
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">Prix</span>
                                                 <span className="text-sm font-bold text-orange-500">
                                                   {typeof match.matchedItem.current_price === 'number'
                                                     ? match.matchedItem.current_price.toFixed(2)
-                                                    : parseFloat(match.matchedItem.current_price.toString()).toFixed(2)}$
+                                                    : '0.00'}$
                                                 </span>
                                               </div>
                                             );
-                                          } else if (hasOriginalPrice) {
+                                          } else if (hasOriginalPrice && match.matchedItem.original_price !== null) {
                                             return (
                                               <div className="flex flex-col items-end">
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">Prix rég.</span>
                                                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
                                                   {typeof match.matchedItem.original_price === 'number'
                                                     ? match.matchedItem.original_price.toFixed(2)
-                                                    : parseFloat(match.matchedItem.original_price.toString()).toFixed(2)}$
+                                                    : '0.00'}$
                                                 </span>
                                               </div>
                                             );
