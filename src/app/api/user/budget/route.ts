@@ -12,9 +12,7 @@ const budgetSchema = z.object({
     .max(10000, "Le budget ne peut pas dépasser 10000$")
     .optional(),
   typeRepasBudget: z
-    .enum(["dejeuner", "diner", "souper"], {
-      errorMap: () => ({ message: "Type de repas invalide" }),
-    })
+    .enum(["dejeuner", "diner", "souper"])
     .nullable()
     .optional(),
   jourSemaineBudget: z
