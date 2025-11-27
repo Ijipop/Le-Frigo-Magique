@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "../../../../lib/utils/logger";
 
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
 
@@ -111,7 +112,7 @@ export async function GET(req: Request) {
 
     if (!res.ok) {
       const text = await res.text();
-      console.error("❌ Flipp flyers error:", res.status, text);
+      logger.error("Erreur Flipp flyers", undefined, { status: res.status, responsePreview: text.substring(0, 200) });
       return NextResponse.json(
         { error: "flipp_error", status: res.status, details: text },
         { status: 500 },
@@ -177,7 +178,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("❌ /api/flyers unexpected error:", error);
+    logger.error("Erreur inattendue dans /api/flyers", error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
       { error: "internal_error", details: error instanceof Error ? error.message : String(error) },
       { status: 500 },

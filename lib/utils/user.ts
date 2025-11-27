@@ -1,5 +1,6 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "../prisma";
+import { logger } from "./logger";
 
 /**
  * Récupère ou crée un utilisateur Prisma à partir de l'ID Clerk
@@ -18,7 +19,7 @@ export async function getOrCreateUser(clerkUserId: string) {
       const clerkUser = await currentUser();
 
       if (!clerkUser) {
-        console.error("❌ Impossible de récupérer les infos de l'utilisateur depuis Clerk");
+        logger.error("Impossible de récupérer les infos de l'utilisateur depuis Clerk", undefined, { clerkUserId });
         return null;
       }
 
@@ -27,7 +28,7 @@ export async function getOrCreateUser(clerkUserId: string) {
         clerkUser.primaryEmailAddress?.emailAddress;
 
       if (!email) {
-        console.error("❌ Pas d'email trouvé pour l'utilisateur Clerk");
+        logger.error("Pas d'email trouvé pour l'utilisateur Clerk", undefined, { clerkUserId });
         return null;
       }
 
@@ -44,9 +45,9 @@ export async function getOrCreateUser(clerkUserId: string) {
         },
       });
 
-      console.log(`✅ Utilisateur créé automatiquement dans Prisma: ${email}`);
+      logger.info(`Utilisateur créé automatiquement dans Prisma`, { email, clerkUserId });
     } catch (error) {
-      console.error("❌ Erreur lors de la création automatique de l'utilisateur:", error);
+      logger.error("Erreur lors de la création automatique de l'utilisateur", error instanceof Error ? error : new Error(String(error)), { clerkUserId });
       return null;
     }
   }

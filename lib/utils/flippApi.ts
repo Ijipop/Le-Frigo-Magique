@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
 
 /**
@@ -35,7 +37,7 @@ export async function getFlyerItems(
   for (const urlStr of urlsToTry) {
     try {
       const url = new URL(urlStr);
-      console.log(`🔍 [FLIPP-API] Essai URL: ${url.toString()}`);
+      logger.debug(`Essai URL: ${url.toString()}`, { url: url.toString(), flyerId });
 
       const res = await fetch(url.toString(), {
         headers: {
@@ -47,7 +49,7 @@ export async function getFlyerItems(
         cache: "no-store",
       });
 
-      console.log(`🔍 [FLIPP-API] Réponse pour ${url.toString()}: status ${res.status}`);
+      logger.debug(`Réponse pour ${url.toString()}`, { url: url.toString(), status: res.status });
 
       if (res.ok) {
         const data = await res.json();
@@ -57,11 +59,15 @@ export async function getFlyerItems(
           [];
 
         if (rawItems.length > 0) {
-          console.log(`✅ [FLIPP-API] Items trouvés avec ${url.toString()}: ${rawItems.length} items`);
+          logger.info(`Items trouvés avec ${url.toString()}`, { 
+            url: url.toString(), 
+            itemsCount: rawItems.length,
+            flyerId 
+          });
           
           // Log la structure du premier item pour déboguer
           if (rawItems[0]) {
-            console.log(`🔍 [FLIPP-API] Structure du premier item:`, {
+            logger.debug(`Structure du premier item`, {
               keys: Object.keys(rawItems[0]),
               sample: JSON.stringify(rawItems[0]).substring(0, 500),
             });
@@ -158,7 +164,8 @@ export async function getFlyerItems(
             
             // Log si on n'a pas trouvé de prix régulier pour déboguer
             if (!foundOriginalPrice && currentPrice && rawItems.indexOf(item) < 5) {
-              console.log(`⚠️ [FLIPP-API] Pas de prix régulier pour "${name}":`, {
+              logger.debug(`Pas de prix régulier pour "${name}"`, {
+                itemName: name,
                 hasDiscount: item.discount != null,
                 discount: item.discount,
                 currentPrice,
@@ -169,7 +176,7 @@ export async function getFlyerItems(
             
             // Log le premier item pour déboguer
             if (rawItems.indexOf(item) === 0) {
-              console.log(`🔍 [FLIPP-API] Structure du premier item (détaillée):`, {
+              logger.debug(`Structure du premier item (détaillée)`, {
                 keys: Object.keys(item),
                 priceFields: {
                   current_price: item.current_price,
@@ -188,7 +195,6 @@ export async function getFlyerItems(
                   current: currentPrice,
                   original: foundOriginalPrice,
                 },
-                fullItem: JSON.stringify(item).substring(0, 2000),
               });
             }
             
@@ -207,30 +213,36 @@ export async function getFlyerItems(
           
           // Log quelques exemples d'items avec prix
           const itemsWithPrice = items.filter(i => i.current_price || i.original_price);
-          console.log(`🔍 [FLIPP-API] Items avec prix: ${itemsWithPrice.length}/${items.length}`);
-          if (itemsWithPrice.length > 0) {
-            console.log(`🔍 [FLIPP-API] Exemples d'items avec prix:`, 
-              itemsWithPrice.slice(0, 3).map(i => ({ 
-                name: i.name, 
-                current: i.current_price, 
-                original: i.original_price 
-              }))
-            );
-          }
+          logger.debug(`Items avec prix: ${itemsWithPrice.length}/${items.length}`, {
+            itemsWithPrice: itemsWithPrice.length,
+            totalItems: items.length,
+            sampleItems: itemsWithPrice.slice(0, 3).map(i => ({ 
+              name: i.name, 
+              current: i.current_price, 
+              original: i.original_price 
+            }))
+          });
           
           return { items };
         }
       } else {
         const text = await res.text();
-        console.log(`⚠️ [FLIPP-API] ${url.toString()} retourne ${res.status}: ${text.substring(0, 100)}`);
+        logger.warn(`${url.toString()} retourne ${res.status}`, { 
+          url: url.toString(), 
+          status: res.status,
+          responsePreview: text.substring(0, 100) 
+        });
       }
     } catch (err) {
-      console.log(`⚠️ [FLIPP-API] Erreur avec ${urlStr}:`, err);
+      logger.warn(`Erreur avec ${urlStr}`, { 
+        url: urlStr, 
+        error: err instanceof Error ? err.message : String(err) 
+      });
       continue;
     }
   }
 
   // Si aucune URL n'a fonctionné
-  console.error(`❌ Flipp flyer items error: Aucune URL n'a fonctionné pour flyer ${flyerId}`);
+  logger.error(`Aucune URL n'a fonctionné pour flyer ${flyerId}`, undefined, { flyerId });
   return { items: [], error: "Toutes les URLs ont échoué" };
 }
