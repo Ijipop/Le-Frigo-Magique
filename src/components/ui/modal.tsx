@@ -13,6 +13,7 @@ interface ModalProps {
   cancelText?: string;
   onConfirm?: () => void;
   variant?: "default" | "danger";
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 export default function Modal({
@@ -24,6 +25,7 @@ export default function Modal({
   cancelText = "Annuler",
   onConfirm,
   variant = "default",
+  size = "md",
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -49,8 +51,14 @@ export default function Modal({
       {/* Modal */}
       <div
         className={cn(
-          "relative z-50 w-full max-w-md mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl",
-          "transform transition-all duration-200"
+          "relative z-50 w-full mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl",
+          "transform transition-all duration-200",
+          {
+            "max-w-sm": size === "sm",
+            "max-w-md": size === "md",
+            "max-w-2xl": size === "lg",
+            "max-w-4xl": size === "xl",
+          }
         )}
         onClick={(e) => e.stopPropagation()}
       >

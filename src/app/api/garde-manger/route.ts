@@ -8,18 +8,25 @@ import type { ApiResponse } from "../../../../lib/types/api";
 // GET - Récupérer tous les articles du garde-manger de l'utilisateur connecté
 export async function GET() {
   try {
+    console.log("🔍 [API garde-manger] GET appelé");
     const { userId } = await auth();
 
     if (!userId) {
+      console.log("❌ [API garde-manger] Pas d'userId");
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
+
+    console.log("✅ [API garde-manger] userId:", userId);
 
     // Récupérer ou créer l'utilisateur Prisma
     const utilisateur = await getOrCreateUser(userId);
 
     if (!utilisateur) {
+      console.error("❌ [API garde-manger] Impossible de récupérer l'utilisateur");
       return NextResponse.json<ApiResponse>({ error: "Impossible de récupérer l'utilisateur" }, { status: 500 });
     }
+
+    console.log("✅ [API garde-manger] Utilisateur trouvé:", utilisateur.id);
 
     // Récupérer les articles du garde-manger
     const articles = await prisma.articleGardeManger.findMany({
@@ -27,9 +34,10 @@ export async function GET() {
       orderBy: { nom: "asc" },
     });
 
+    console.log(`✅ [API garde-manger] ${articles.length} article(s) trouvé(s)`);
     return NextResponse.json<ApiResponse>({ data: articles });
   } catch (error) {
-    console.error("Erreur lors de la récupération du garde-manger:", error);
+    console.error("❌ [API garde-manger] Erreur:", error);
     return NextResponse.json<ApiResponse>(
       { error: "Erreur serveur" },
       { status: 500 }

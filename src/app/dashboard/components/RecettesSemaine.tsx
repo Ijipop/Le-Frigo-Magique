@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Calendar, ExternalLink, Trash2, Loader2 } from "lucide-react";
+import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import Modal from "../../../components/ui/modal";
@@ -14,6 +14,8 @@ interface RecetteSemaine {
   image: string | null;
   snippet: string | null;
   source: string | null;
+  estimatedCost: number | null;
+  servings: number | null;
   createdAt: string;
 }
 
@@ -25,6 +27,8 @@ export default function RecettesSemaine() {
     recetteId: null,
     recetteTitre: "",
   });
+  const [deleteAllModal, setDeleteAllModal] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   // Charger les recettes au montage et écouter les mises à jour
   useEffect(() => {
@@ -128,11 +132,34 @@ export default function RecettesSemaine() {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Recettes de la semaine
         </h2>
-        {recettes.length > 0 && (
-          <span className="ml-auto text-sm text-gray-500 dark:text-gray-400">
-            {recettes.length} recette{recettes.length > 1 ? "s" : ""}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {recettes.length > 0 && (
+            <>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {recettes.length} recette{recettes.length > 1 ? "s" : ""}
+              </span>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setDeleteAllModal(true)}
+                disabled={deletingAll}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash className="w-4 h-4" />
+                    Tout supprimer
+                  </>
+                )}
+              </motion.button>
+            </>
+          )}
+        </div>
       </motion.div>
 
       <AnimatePresence>
@@ -214,9 +241,27 @@ export default function RecettesSemaine() {
                       </p>
                     )}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {recette.source || "Source inconnue"}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {recette.source || "Source inconnue"}
+                        </span>
+                        {recette.servings && recette.servings > 0 && (
+                          <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {recette.servings} portion{recette.servings > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {recette.estimatedCost !== null && recette.estimatedCost > 0 && (
+                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">
+                            ~{recette.estimatedCost.toFixed(2)}$
+                            {recette.servings && recette.servings > 0 && (
+                              <span className="text-orange-500 dark:text-orange-400 ml-1">
+                                ({(recette.estimatedCost / recette.servings).toFixed(2)}$/portion)
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <a
                           href={recette.url}
@@ -246,7 +291,7 @@ export default function RecettesSemaine() {
         )}
       </AnimatePresence>
 
-      {/* Modal de confirmation de suppression */}
+      {/* Modal de confirmation de suppression d'une recette */}
       <Modal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, recetteId: null, recetteTitre: "" })}
@@ -259,6 +304,43 @@ export default function RecettesSemaine() {
         <p className="text-gray-600 dark:text-gray-300">
           Êtes-vous sûr de vouloir supprimer <strong>{deleteModal.recetteTitre}</strong> de vos recettes de la semaine ?
           Cette action est irréversible.
+        </p>
+      </Modal>
+
+      {/* Modal de confirmation de suppression de toutes les recettes */}
+      <Modal
+        isOpen={deleteAllModal}
+        onClose={() => setDeleteAllModal(false)}
+        title="Supprimer toutes les recettes"
+        onConfirm={async () => {
+          try {
+            setDeletingAll(true);
+            const response = await fetch("/api/recettes-semaine?all=true", {
+              method: "DELETE",
+            });
+
+            if (response.ok) {
+              toast.success(`${recettes.length} recette${recettes.length > 1 ? "s" : ""} supprimée${recettes.length > 1 ? "s" : ""}`);
+              fetchRecettes();
+              setDeleteAllModal(false);
+            } else {
+              toast.error("Erreur lors de la suppression");
+            }
+          } catch (error) {
+            console.error("Erreur lors de la suppression:", error);
+            toast.error("Une erreur est survenue");
+          } finally {
+            setDeletingAll(false);
+          }
+        }}
+        variant="danger"
+        confirmText="Tout supprimer"
+        cancelText="Annuler"
+      >
+        <p className="text-gray-600 dark:text-gray-300">
+          Êtes-vous sûr de vouloir supprimer <strong>toutes les {recettes.length} recette{recettes.length > 1 ? "s" : ""}</strong> de votre semaine ?
+          <br />
+          <span className="text-red-600 dark:text-red-400 font-semibold">Cette action est irréversible.</span>
         </p>
       </Modal>
     </motion.div>

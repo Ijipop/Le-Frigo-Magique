@@ -13,6 +13,8 @@ model Utilisateur {
   nom                String?
   nbPersonnes        Int? // nombre de personnes au foyer
   budgetHebdomadaire Int? // budget en dollars
+  typeRepasBudget    String? // "dejeuner", "diner", "souper" - pour recherche par budget
+  jourSemaineBudget  Int? // 1-7 (1=lundi, 7=dimanche) - pour recherche par budget
 
   preferences       Preferences?
   gardeManger       ArticleGardeManger[]
@@ -161,9 +163,24 @@ model RecetteSemaine {
   image   String? // URL de l'image
   snippet String? // Description courte
   source  String? // Site source (ex: ricardocuisine.com)
+  estimatedCost Float? // Coût approximatif en dollars CAD
+  servings Int? // Nombre de portions/personnes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([utilisateurId])
+}
+
+model PrixIngredient {
+  id          String   @id @default(cuid())
+  nom         String   @unique // Nom normalisé de l'ingrédient (ex: "poulet", "pates")
+  prixMoyen   Float    // Prix moyen en dollars CAD
+  categorie   String?  // Catégorie (ex: "viande", "pâtes", "légumes")
+  source      String   @default("flipp") // "flipp", "fallback", "gpt"
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([nom])
+  @@index([categorie])
 }
