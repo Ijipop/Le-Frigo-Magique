@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "../../../../lib/utils/logger";
+import { withRateLimit, RateLimitConfigs } from "../../../../lib/utils/rateLimit";
+import { auth } from "@clerk/nextjs/server";
 
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
 
@@ -84,8 +86,9 @@ function isGroceryFlyer(flyer: any) {
   return merchantMatch || nameMatch || categoryMatch;
 }
 
-export async function GET(req: Request) {
-  try {
+export const GET = withRateLimit(
+  RateLimitConfigs.SEARCH, // 10 requêtes par minute
+  async (req: Request) => {
     const { searchParams } = new URL(req.url);
     let postalCode = searchParams.get("postalCode") || "H1A1A1";
     
@@ -177,12 +180,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(response);
-  } catch (error) {
-    logger.error("Erreur inattendue dans /api/flyers", error instanceof Error ? error : new Error(String(error)));
-    return NextResponse.json(
-      { error: "internal_error", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 },
-    );
+  },
+  async () => {
+    const { userId } = await auth();
+    return userId || null;
   }
-}
+);
 
