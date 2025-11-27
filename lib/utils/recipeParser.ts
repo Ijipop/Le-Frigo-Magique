@@ -148,7 +148,7 @@ function extractIngredientsFromHTML(
   // Les sites qui utilisent Schema.org donnent explicitement leur consentement
   // à l'extraction de données structurées
   try {
-    const schemaMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gs);
+    const schemaMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
     if (schemaMatch) {
       for (const match of schemaMatch) {
         try {
@@ -315,7 +315,7 @@ function cleanHTML(html: string): string {
 function extractServings(html: string): number | undefined {
   // Chercher dans Schema.org
   try {
-    const schemaMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gs);
+    const schemaMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
     if (schemaMatch) {
       for (const match of schemaMatch) {
         try {
