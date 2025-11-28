@@ -374,9 +374,10 @@ export const GET = withRateLimit(
       query += ' "économique" "pas cher"';
     }
     
-    // Rechercher 20 recettes pour avoir plus de choix
+    // Rechercher 30 recettes pour avoir plus de choix (augmenté pour les recherches avec budget)
+    const maxResults = budgetParam ? 30 : 20;
     console.log("🔎 [API] Recherche ciblée pour recettes individuelles:", query);
-    const results = await performGoogleSearch(query, 20);
+    const results = await performGoogleSearch(query, maxResults);
     results.forEach((item: any) => {
       if (!seenUrls.has(item.url)) {
         allItems.push(item);
@@ -388,14 +389,24 @@ export const GET = withRateLimit(
     // Si on cherche uniquement avec des filtres (sans ingrédients), faire des recherches supplémentaires avec variantes
     if (ingredientsArray.length === 0 && filterQueryTerms) {
       // Faire des recherches supplémentaires avec différentes variantes pour maximiser les résultats
-      const variantQueries = [
+      // Si on a un budget, faire plus de variantes pour avoir plus de résultats
+      const baseVariants = [
         `recette ${filterQueryTerms} facile`,
         `comment faire ${filterQueryTerms}`,
         `${filterQueryTerms} maison`,
       ];
       
+      // Ajouter des variantes supplémentaires si on a un budget (pour avoir plus de résultats)
+      const variantQueries = budgetParam ? [
+        ...baseVariants,
+        `recette ${filterQueryTerms} rapide`,
+        `${filterQueryTerms} recette simple`,
+        `recette ${filterQueryTerms} pas cher`,
+      ] : baseVariants;
+      
       for (const variantQuery of variantQueries) {
-        const variantResults = await performGoogleSearch(variantQuery, 10);
+        const variantMaxResults = budgetParam ? 15 : 10;
+        const variantResults = await performGoogleSearch(variantQuery, variantMaxResults);
         variantResults.forEach((item: any) => {
           if (!seenUrls.has(item.url)) {
             allItems.push(item);
@@ -864,25 +875,61 @@ export const GET = withRateLimit(
         return item.estimatedCost <= budget;
       });
 
-      // Trier par coût croissant (moins cher en premier)
-      itemsInBudget.sort((a, b) => {
-        const costA = a.estimatedCost ?? Infinity;
-        const costB = b.estimatedCost ?? Infinity;
-        return costA - costB;
-      });
+      // Si on n'a pas assez de recettes dans le budget, assouplir le filtre
+      let finalItems = itemsInBudget;
+      if (itemsInBudget.length < 10) {
+        // Assouplir : accepter les recettes jusqu'à 150% du budget
+        const relaxedBudget = budget * 1.5;
+        const itemsRelaxed = itemsWithCost.filter((item) => {
+          if (item.estimatedCost === null || item.estimatedCost === undefined) {
+            return true;
+          }
+          return item.estimatedCost <= relaxedBudget;
+        });
+        
+        // Trier par coût croissant (prioriser celles dans le budget strict)
+        itemsRelaxed.sort((a, b) => {
+          const costA = a.estimatedCost ?? Infinity;
+          const costB = b.estimatedCost ?? Infinity;
+          const inBudgetA = costA <= budget ? 0 : 1;
+          const inBudgetB = costB <= budget ? 0 : 1;
+          
+          // D'abord celles dans le budget strict, puis par coût
+          if (inBudgetA !== inBudgetB) {
+            return inBudgetA - inBudgetB;
+          }
+          return costA - costB;
+        });
+        
+        finalItems = itemsRelaxed;
+        
+        logger.warn("Budget assoupli pour avoir plus de résultats", {
+          budgetStrict: budget,
+          budgetRelaxed: relaxedBudget,
+          recettesDansBudgetStrict: itemsInBudget.length,
+          recettesDansBudgetRelaxe: itemsRelaxed.length,
+        });
+      } else {
+        // Trier par coût croissant (moins cher en premier)
+        finalItems.sort((a, b) => {
+          const costA = a.estimatedCost ?? Infinity;
+          const costB = b.estimatedCost ?? Infinity;
+          return costA - costB;
+        });
+      }
 
       // Sélectionner aléatoirement entre 10 et 15 recettes parmi celles qui respectent le budget
       const minReturn = 10;
       const maxReturn = 15;
       
-      if (itemsInBudget.length >= minReturn) {
+      if (finalItems.length >= minReturn) {
         // Mélanger et prendre entre 10 et 15 recettes
-        const shuffled = [...itemsInBudget].sort(() => Math.random() - 0.5);
-        const count = Math.min(maxReturn, itemsInBudget.length);
+        const shuffled = [...finalItems].sort(() => Math.random() - 0.5);
+        const count = Math.min(maxReturn, finalItems.length);
         items = shuffled.slice(0, count);
       } else {
         // Si on a moins de 10, on retourne toutes
-        items = itemsInBudget;
+        items = finalItems;
       }
 
       logger.info("Recettes filtrées par budget et sélectionnées aléatoirement", {
