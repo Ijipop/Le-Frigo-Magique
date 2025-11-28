@@ -12,6 +12,7 @@ import InformationsLegales from "./components/InformationsLegales";
 import Favoris from "./components/Favoris";
 import { ChefHat, Settings, ShoppingBag, Scale, Heart, User, DollarSign } from "lucide-react";
 import Preferences from "./components/Preferences";
+import TutorialLink from "./components/TutorialLink";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
       icon: <ChefHat className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
+          <TutorialLink />
           <RecettesSemaine />
 
           <div>

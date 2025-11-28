@@ -282,7 +282,8 @@ export default function RecettesSemaine() {
                   exit={{ opacity: 0, x: 20, scale: 0.8 }}
                   transition={{ duration: 0.2, delay: index * 0.05 }}
                   whileHover={{ scale: 1.01 }}
-                  className="flex gap-3 p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group overflow-hidden"
+                  onClick={() => window.open(recette.url, '_blank')}
+                  className="flex gap-3 p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group overflow-hidden cursor-pointer"
                 >
                   {/* Miniature */}
                   <div className="flex-shrink-0">
@@ -290,8 +291,7 @@ export default function RecettesSemaine() {
                       <img
                         src={recette.image}
                         alt={recette.titre}
-                        className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer"
-                        onClick={() => window.open(recette.url, '_blank')}
+                        className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";
@@ -309,8 +309,7 @@ export default function RecettesSemaine() {
                       />
                     ) : (
                       <div 
-                        className="w-20 h-20 bg-gradient-to-br from-orange-100 to-amber-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600 cursor-pointer"
-                        onClick={() => window.open(recette.url, '_blank')}
+                        className="w-20 h-20 bg-gradient-to-br from-orange-100 to-amber-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600"
                       >
                         <Calendar className="w-8 h-8 text-orange-400 dark:text-orange-500" />
                       </div>
@@ -320,8 +319,7 @@ export default function RecettesSemaine() {
                   {/* Contenu */}
                   <div className="flex-1 min-w-0">
                     <h4 
-                      className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors cursor-pointer"
-                      onClick={() => window.open(recette.url, '_blank')}
+                      className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors"
                     >
                       {recette.titre}
                     </h4>
@@ -398,19 +396,13 @@ export default function RecettesSemaine() {
                             <Heart className={`w-4 h-4 ${favoriteRecipes.has(recette.url) ? "fill-current" : ""}`} />
                           )}
                         </motion.button>
-                        <a
-                          href={recette.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteClick(recette.id, recette.titre)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(recette.id, recette.titre);
+                          }}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           aria-label="Supprimer"
                         >

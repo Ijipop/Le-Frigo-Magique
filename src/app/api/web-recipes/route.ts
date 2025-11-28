@@ -228,6 +228,8 @@ export const GET = withRateLimit(
       url.searchParams.set("cx", process.env.GOOGLE_CX!);
       url.searchParams.set("q", query);
       url.searchParams.set("num", Math.min(maxResults, 10).toString()); // Google limite à 10 par requête
+      url.searchParams.set("lr", "lang_fr"); // Limiter aux résultats en français
+      url.searchParams.set("hl", "fr"); // Interface en français
 
       const res = await fetch(url.toString());
       const data = await res.json();
@@ -247,6 +249,8 @@ export const GET = withRateLimit(
         url2.searchParams.set("q", query);
         url2.searchParams.set("num", Math.min(maxResults - 10, 10).toString());
         url2.searchParams.set("start", "11");
+        url2.searchParams.set("lr", "lang_fr"); // Limiter aux résultats en français
+        url2.searchParams.set("hl", "fr"); // Interface en français
         
         try {
           const res2 = await fetch(url2.toString());
@@ -358,11 +362,11 @@ export const GET = withRateLimit(
     
     // Exclure les pages de listes/compilations (moins agressif si on cherche uniquement avec filtres)
     if (ingredientsArray.length === 0 && filterQueryTerms) {
-      // Recherche uniquement avec filtres : exclusions minimales pour maximiser les résultats
-      query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"top 10" -"meilleures recettes" -"compilation" -"galerie"';
+      // Recherche uniquement avec filtres : exclusions pour éviter les listes et astuces
+      query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"top 10" -"meilleures recettes" -"compilation" -"galerie" -"astuces" -"astuce" -"conseils" -"conseil" -"trucs" -"truc" -"guide" -"tutoriel" -"sélection" -"collection"';
     } else {
-      // Recherche avec ingrédients : exclusions plus agressives pour éviter les listes
-      query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"liste de" -"top 10" -"meilleures recettes" -"compilation" -"galerie" -"repas à rabais" -"repas à prix réduit" -"recettes à petits prix" -"astuces" -"conseils" -"trucs" -"façons" -"manières" -"projet" -"expérience" -"expérience culinaire" -"commerce" -"fait maison" -"lequel" -"comparaison" -"cuisine de groupe" -"restes" -"recettes du québec"';
+      // Recherche avec ingrédients : exclusions plus agressives pour éviter les listes et astuces
+      query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"liste de" -"top 10" -"meilleures recettes" -"compilation" -"galerie" -"repas à rabais" -"repas à prix réduit" -"recettes à petits prix" -"astuces" -"astuce" -"conseils" -"conseil" -"trucs" -"truc" -"façons" -"manières" -"projet" -"expérience" -"expérience culinaire" -"commerce" -"fait maison" -"lequel" -"comparaison" -"cuisine de groupe" -"restes" -"recettes du québec" -"comment faire" -"comment préparer" -"guide" -"tutoriel" -"sélection" -"collection"';
     }
     
     // Ajouter budget si nécessaire
@@ -473,20 +477,29 @@ export const GET = withRateLimit(
       "recettes.qc.ca", // Site qui retourne souvent des compilations
       "lesgourmandisesdisa.com", // Site qui retourne des projets/articles
       "5ingredients15minutes.com", // Site qui retourne des articles de comparaison
+      // Domaines anglais de recettes à exclure
+      "allrecipes.com",
+      "foodnetwork.com",
+      "food.com",
+      "tasty.co",
+      "bbcgoodfood.com",
+      "delish.com",
+      "bonappetit.com",
+      "epicurious.com",
+      "seriouseats.com",
+      "thespruceeats.com",
     ];
     
     // Sites à vérifier plus attentivement (mais ne pas bloquer complètement)
     // On les accepte mais on vérifie qu'ils ne sont pas des listes
     const suspiciousDomains = [
-      "allrecipes.com",
-      "food.com",
       "yummly.com",
       "cookpad.com",
     ];
     
     /**
-     * Fonction robuste pour détecter les pages de listes (pas des recettes individuelles)
-     * Version ASSOUPLIE : ne filtrer que les cas vraiment évidents de listes
+     * Fonction robuste pour détecter les pages de listes, astuces et conseils (pas des recettes individuelles)
+     * Version STRICTE : filtrer toutes les pages qui ne sont pas des recettes individuelles
      */
     const isListPage = (item: any): boolean => {
       if (!item.title && !item.snippet) return false;
@@ -495,24 +508,32 @@ export const GET = withRateLimit(
       const snippetLower = (item.snippet || "").toLowerCase();
       const fullText = `${titleLower} ${snippetLower}`;
       
-      // 1. Détecter UNIQUEMENT les cas très évidents : titre commence par un nombre + "recettes"
-      // Exemples: "10 recettes...", "20 repas..." au début du titre
-      if (/^\d+\s+(recettes?|repas|idées?)\s/i.test(titleLower)) {
-        return true;
-      }
-      
-      // 2. Détecter les patterns très évidents de compilation dans le snippet
-      // Exemples: "Découvrez 10 recettes", "Voici 20 recettes", "Compilation de 15 recettes"
-      const obviousListPatterns = [
-        /^(découvrez|voici|consultez|explorez|nos|les)\s+(\d+)\s+(recettes?|repas|idées?)/i,
-        /\b(compilation|galerie|sélection|collection)\s+.*?(\d+)\s+(recettes?|repas)/i,
+      // 1. Détecter les pages d'astuces, conseils et trucs
+      const tipsPatterns = [
+        /\b(astuce|astuces|conseil|conseils|truc|trucs|trucs?\s+et\s+astuces?)\b/i,
+        /\b(comment\s+faire|comment\s+préparer|comment\s+cuisiner)\b/i,
+        /\b(guide|guides?|tutoriel|tutoriels?)\b/i,
+        /\b(meilleures?\s+façons?|meilleures?\s+manières?)\b/i,
       ];
-      
-      if (obviousListPatterns.some(pattern => pattern.test(snippetLower))) {
+      if (tipsPatterns.some(pattern => pattern.test(fullText))) {
         return true;
       }
       
-      // 3. Détecter les URLs qui suggèrent des listes (ex: /liste/, /top-10/, /compilation/)
+      // 2. Détecter les pages de listes : nombre + "recettes/repas/idées"
+      if (/\b(\d+)\s+(recettes?|repas|idées?|suggestions?|plats?|menus?)\b/i.test(fullText)) {
+        return true;
+      }
+      
+      // 3. Détecter les compilations, sélections, galeries
+      const compilationPatterns = [
+        /\b(compilation|galerie|sélection|collection|top\s+\d+|meilleures?\s+recettes?)\b/i,
+        /^(découvrez|voici|consultez|explorez|nos|les)\s+(\d+)\s+(recettes?|repas|idées?)/i,
+      ];
+      if (compilationPatterns.some(pattern => pattern.test(fullText))) {
+        return true;
+      }
+      
+      // 4. Détecter les URLs qui suggèrent des listes ou astuces
       if (item.url) {
         const urlLower = item.url.toLowerCase();
         const listUrlPatterns = [
@@ -521,27 +542,82 @@ export const GET = withRateLimit(
           /\/\d+-recettes\//,
           /\/compilation\//,
           /\/galerie\//,
-          /recettes\.qc\.ca/i, // Site "recettes.qc.ca" souvent des compilations
+          /\/astuce/,
+          /\/conseil/,
+          /\/truc/,
+          /\/guide/,
+          /\/tutoriel/,
+          /recettes\.qc\.ca/i,
         ];
         if (listUrlPatterns.some(pattern => pattern.test(urlLower))) {
           return true;
         }
       }
       
-      // 4. Détecter les titres qui sont des questions de comparaison évidentes
-      if (/^(du|le|la|quel|quelle|lequel|lesquels)\s+(commerce|fait\s+maison|revient|coûte)/i.test(titleLower)) {
+      // 5. Détecter les pages de comparaison, projets, expériences
+      const comparisonPatterns = [
+        /^(du|le|la|quel|quelle|lequel|lesquels)\s+(commerce|fait\s+maison|revient|coûte)/i,
+        /\b(projet|expérience|expérience\s+culinaire|commerce|fait\s+maison|lequel|comparaison)\b/i,
+        /\b(apprendre|planifier|adapter)\s+(les?\s+)?(portions|recettes?|repas)/i,
+      ];
+      if (comparisonPatterns.some(pattern => pattern.test(fullText))) {
         return true;
       }
       
-      // 5. Détecter les patterns avec ":" suivi d'un nombre au début (ex: "Recettes: 10 idées")
+      // 6. Détecter les patterns avec ":" suivi d'un nombre (ex: "Recettes: 10 idées")
       if (/^[^:]*:\s*(\d+)\s+(recettes?|repas|idées?)/i.test(titleLower)) {
         return true;
       }
       
-      // TOUT LE RESTE EST ACCEPTÉ - on ne filtre plus les patterns moins évidents
-      // pour avoir plus de résultats
+      // 7. Détecter les titres qui commencent par un nombre + "recettes/repas"
+      if (/^\d+\s+(recettes?|repas|idées?)\s/i.test(titleLower)) {
+        return true;
+      }
+      
+      // 8. Détecter les pages avec "petits prix", "cuisine de groupe", "restes"
+      if (/(petits?\s+prix|cuisine\s+de\s+groupe|restes|recettes?\s+du\s+québec)/i.test(fullText)) {
+        return true;
+      }
       
       return false;
+    };
+    
+    /**
+     * Fonction pour détecter si une recette est en français
+     */
+    const isFrenchRecipe = (item: any): boolean => {
+      if (!item.title && !item.snippet) return true; // Accepter par défaut si pas de texte
+      
+      const titleLower = (item.title || "").toLowerCase();
+      const snippetLower = (item.snippet || "").toLowerCase();
+      const fullText = `${titleLower} ${snippetLower}`;
+      
+      // Mots-clés anglais communs qui indiquent une recette non-française
+      const englishKeywords = [
+        /\b(recipe|recipes|how to|ingredients|directions|instructions|prep time|cook time|servings|calories)\b/i,
+        /\b(add|mix|stir|bake|fry|grill|roast|boil|simmer|season|taste|serve)\b/i,
+        /\b(cup|cups|tablespoon|teaspoon|ounce|pound|lb|oz)\b/i,
+      ];
+      
+      // Si on trouve des mots-clés anglais typiques, c'est probablement en anglais
+      if (englishKeywords.some(pattern => pattern.test(fullText))) {
+        return false;
+      }
+      
+      // Mots-clés français communs qui indiquent une recette française
+      const frenchKeywords = [
+        /\b(recette|recettes|ingrédients|préparation|cuisson|portions|personnes)\b/i,
+        /\b(ajouter|mélanger|remuer|cuire|faire|réserver|servir)\b/i,
+        /\b(tasse|cuillère|cuillères|g|kg|ml|l)\b/i,
+      ];
+      
+      // Si on trouve des mots-clés français, c'est probablement en français
+      if (frenchKeywords.some(pattern => pattern.test(fullText))) {
+        return true;
+      }
+      
+      // Par défaut, accepter (le paramètre lr=lang_fr de Google devrait déjà filtrer)
+      return true;
     };
     
     const filteredByDomain = allItems.filter(item => {
@@ -552,6 +628,19 @@ export const GET = withRateLimit(
       const isBlocked = blockedDomains.some(blocked => domain.includes(blocked));
       if (isBlocked) return false;
       
+      // Exclure les URLs avec "/en/" (version anglaise)
+      if (item.url) {
+        const urlLower = item.url.toLowerCase();
+        if (urlLower.includes("/en/") || urlLower.includes("/en?") || urlLower.endsWith("/en")) {
+          return false;
+        }
+      }
+      
+      // Exclure les recettes non-françaises
+      if (!isFrenchRecipe(item)) {
+        return false;
+      }
+      
       // Pour les domaines suspects, vérifier qu'ils ne sont pas des listes
       const isSuspicious = suspiciousDomains.some(suspicious => domain.includes(suspicious));
       if (isSuspicious) {
@@ -561,34 +650,13 @@ export const GET = withRateLimit(
         return true;
       }
       
-      // Exclure les pages de listes (mais être moins strict si on a peu de résultats)
+      // Exclure TOUJOURS les pages de listes, astuces et conseils - filtrage strict à 100%
       const isList = isListPage(item);
-      
-      // Si on a peu de résultats après filtrage, être moins strict avec la détection de listes
-      // Accepter certaines recettes même si elles matchent certains patterns
-      if (isList && allItems.length > 15) {
-        // Si on a beaucoup de résultats, filtrer strictement
-        return false;
-      } else if (isList && allItems.length <= 15) {
-        // Si on a peu de résultats, être plus permissif
-        // Ne filtrer que les listes évidentes (avec nombre au début du titre)
-        const titleLower = (item.title || "").toLowerCase();
-        const snippetLower = (item.snippet || "").toLowerCase();
-        
-        // Filtrer seulement les cas très évidents de listes
-        const isObviousList = 
-          /^\d+\s+(recettes?|repas|idées?)\s/i.test(titleLower) || // "10 recettes..."
-          /\b(compilation|galerie|sélection|collection)\s+.*?(\d+)\s+(recettes?|repas)/i.test(snippetLower) || // "compilation de 10 recettes"
-          /(découvrez|voici|consultez)\s+(\d+)\s+(recettes?|repas)/i.test(snippetLower); // "Découvrez 10 recettes"
-        
-        if (isObviousList) {
-          return false;
-        }
-        // Sinon, accepter même si ça matche d'autres patterns moins évidents
-        return true;
+      if (isList) {
+        return false; // Toujours exclure les listes, astuces et conseils
       }
       
-      return !isList;
+      return true;
     });
     
     console.log(`🚫 [API] ${allItems.length - filteredByDomain.length} recette(s) filtrée(s) (sites indésirables/listes), ${filteredByDomain.length} recette(s) conservée(s)`);

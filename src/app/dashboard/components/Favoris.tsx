@@ -199,7 +199,8 @@ export default function Favoris() {
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.2, delay: index * 0.05 }}
                 whileHover={{ scale: 1.02 }}
-                className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group"
+                onClick={() => window.open(favorite.url, '_blank')}
+                className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group cursor-pointer"
               >
                 {/* Miniature */}
                 <div className="flex-shrink-0">
@@ -207,8 +208,7 @@ export default function Favoris() {
                     <img
                       src={favorite.image}
                       alt={favorite.titre}
-                      className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer"
-                      onClick={() => window.open(favorite.url, '_blank')}
+                      className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.style.display = "none";
@@ -226,8 +226,7 @@ export default function Favoris() {
                     />
                   ) : (
                     <div 
-                      className="w-20 h-20 bg-gradient-to-br from-red-100 to-pink-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600 cursor-pointer"
-                      onClick={() => window.open(favorite.url, '_blank')}
+                      className="w-20 h-20 bg-gradient-to-br from-red-100 to-pink-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600"
                     >
                       <ChefHat className="w-8 h-8 text-red-400 dark:text-red-500" />
                     </div>
@@ -237,8 +236,7 @@ export default function Favoris() {
                 {/* Contenu */}
                 <div className="flex-1 min-w-0">
                   <h4 
-                    className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-red-500 transition-colors cursor-pointer"
-                    onClick={() => window.open(favorite.url, '_blank')}
+                    className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-red-500 transition-colors"
                   >
                     {favorite.titre}
                   </h4>
@@ -281,16 +279,6 @@ export default function Favoris() {
                           <Plus className="w-4 h-4" />
                         )}
                       </motion.button>
-                      <a
-                        href={favorite.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                        title="Voir la recette"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
                       <motion.button
                         onClick={(e) => {
                           e.stopPropagation();
