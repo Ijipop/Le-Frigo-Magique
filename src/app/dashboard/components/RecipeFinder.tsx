@@ -264,7 +264,8 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
                       whileHover={{ scale: 1.02 }}
-                      className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group"
+                      onClick={() => window.open(recipe.url, '_blank')}
+                      className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group cursor-pointer"
                     >
                       {/* Miniature */}
                       <div className="flex-shrink-0">
@@ -272,8 +273,7 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                           <img
                             src={recipe.image}
                             alt={recipe.title}
-                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer"
-                            onClick={() => window.open(recipe.url, '_blank')}
+                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = "none";
@@ -291,8 +291,7 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                           />
                         ) : (
                           <div 
-                            className="w-20 h-20 bg-gradient-to-br from-orange-100 to-amber-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600 cursor-pointer"
-                            onClick={() => window.open(recipe.url, '_blank')}
+                            className="w-20 h-20 bg-gradient-to-br from-orange-100 to-amber-100 dark:from-gray-600 dark:to-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600"
                           >
                             <ChefHat className="w-8 h-8 text-orange-400 dark:text-orange-500" />
                           </div>
@@ -302,8 +301,7 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                       {/* Contenu */}
                       <div className="flex-1 min-w-0">
                         <h4 
-                          className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors cursor-pointer"
-                          onClick={() => window.open(recipe.url, '_blank')}
+                          className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors"
                         >
                           {recipe.title}
                         </h4>

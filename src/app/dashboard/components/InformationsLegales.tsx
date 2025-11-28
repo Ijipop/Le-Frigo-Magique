@@ -22,6 +22,59 @@ export default function InformationsLegales() {
     fetchSubscriptionStatus();
   }, []);
 
+  useEffect(() => {
+    const handleOpenTutorial = () => {
+      // Attendre un court délai pour que l'onglet soit complètement chargé
+      setTimeout(() => {
+        setTutorialExpanded(true);
+      }, 400);
+    };
+
+    window.addEventListener("open-tutorial", handleOpenTutorial);
+    return () => {
+      window.removeEventListener("open-tutorial", handleOpenTutorial);
+    };
+  }, []);
+
+  // Ouvrir automatiquement l'accordéon si on arrive sur cet onglet via le lien tutoriel
+  useEffect(() => {
+    // Vérifier si l'événement a été déclenché récemment
+    const checkTutorialEvent = () => {
+      const eventTriggered = sessionStorage.getItem("tutorial-event-triggered");
+      if (eventTriggered === "true") {
+        // Vérifier périodiquement si l'onglet est actif
+        const interval = setInterval(() => {
+          const activeTab = sessionStorage.getItem("active-tab");
+          if (activeTab === "legal") {
+            setTimeout(() => {
+              setTutorialExpanded(true);
+              sessionStorage.removeItem("tutorial-event-triggered");
+            }, 400);
+            clearInterval(interval);
+          }
+        }, 100);
+
+        // Nettoyer après 5 secondes maximum
+        setTimeout(() => {
+          clearInterval(interval);
+          sessionStorage.removeItem("tutorial-event-triggered");
+        }, 5000);
+      }
+    };
+
+    checkTutorialEvent();
+    
+    // Vérifier aussi immédiatement au montage
+    const eventTriggered = sessionStorage.getItem("tutorial-event-triggered");
+    const activeTab = sessionStorage.getItem("active-tab");
+    if (eventTriggered === "true" && activeTab === "legal") {
+      setTimeout(() => {
+        setTutorialExpanded(true);
+        sessionStorage.removeItem("tutorial-event-triggered");
+      }, 400);
+    }
+  }, []);
+
   const fetchSubscriptionStatus = async () => {
     try {
       setLoading(true);

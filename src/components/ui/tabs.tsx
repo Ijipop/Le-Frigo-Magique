@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Tab {
@@ -17,6 +17,24 @@ interface TabsProps {
 
 export default function Tabs({ tabs, defaultTab }: TabsProps) {
   const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id);
+
+  useEffect(() => {
+    const handleOpenTutorial = () => {
+      // Ouvrir l'onglet "À propos" (id: "legal")
+      setActiveTab("legal");
+    };
+
+    window.addEventListener("open-tutorial", handleOpenTutorial);
+    return () => {
+      window.removeEventListener("open-tutorial", handleOpenTutorial);
+    };
+  }, []);
+
+  // Exposer la fonction setActiveTab pour que les composants enfants puissent l'utiliser
+  useEffect(() => {
+    // Stocker l'état de l'onglet actif dans sessionStorage pour que les composants enfants puissent le détecter
+    sessionStorage.setItem("active-tab", activeTab);
+  }, [activeTab]);
 
   const activeTabContent = tabs.find((tab) => tab.id === activeTab)?.content;
 

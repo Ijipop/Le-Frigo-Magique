@@ -469,7 +469,7 @@ export default function QuickSettings() {
               </p>
               {respecterBudget && budget > 0 && (
                 <p className="text-xs text-orange-600 dark:text-orange-400 text-center font-medium">
-                  💰 Coût approximatif estimé : ~{(nbJours * [dejeuner, diner, souper].filter(Boolean).length * (budget / 7)).toFixed(2)}$
+                  💰 Coût approximatif estimé : ~{((budget / 7) * nbJours).toFixed(2)}$
                 </p>
               )}
             </div>
