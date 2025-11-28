@@ -436,9 +436,9 @@ export default function QuickSettings() {
           <Button
             onClick={handleGenerateRecipes}
             disabled={generating || (!dejeuner && !diner && !souper)}
-            className="w-full"
+            className="w-full !text-base !px-10 !py-2 hover:!scale-[1.01]"
             variant="primary"
-            size="sm"
+            size="md"
           >
             {generating ? (
               <>
