@@ -438,7 +438,7 @@ export default function QuickSettings() {
             disabled={generating || (!dejeuner && !diner && !souper)}
             className="w-full"
             variant="primary"
-            size="md"
+            size="sm"
           >
             {generating ? (
               <>
