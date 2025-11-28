@@ -190,7 +190,7 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
             <ChefHat className="w-5 h-5 text-white" />
           </motion.div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Trouver des recettes
+            Recettes trouver
           </h2>
         </div>
         {recipes.length > 0 && (
