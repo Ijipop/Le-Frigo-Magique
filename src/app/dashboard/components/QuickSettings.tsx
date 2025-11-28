@@ -110,7 +110,17 @@ export default function QuickSettings() {
       const targetRecettesParType = Math.max(minRecettesParType * 2, 15); // Au moins 15 par type pour avoir du choix
       const targetRecettesTotal = Math.max(minRecettesTotal * 2, 20); // Au moins 20 au total pour avoir du choix
       
+      // Calculer le budget par repas
+      // Le budget hebdomadaire est pour 7 jours, donc on calcule le budget pour nbJours
+      // Puis on divise par le nombre total de repas
+      const nombreTotalRepas = nbJours * repasTypes.length;
+      const budgetPourNbJours = (budget / 7) * nbJours; // Budget pour nbJours (proportionnel)
+      const budgetParRepas = respecterBudget && budget > 0 && nombreTotalRepas > 0 
+        ? Math.round((budgetPourNbJours / nombreTotalRepas) * 100) / 100 // Arrondir à 2 décimales
+        : null;
+      
       console.log(`🍳 Génération de ${targetRecettesTotal} recettes cibles (minimum ${minRecettesTotal} demandées, ${targetRecettesParType} par type)`);
+      console.log(`💰 Budget hebdomadaire: ${budget}$, Budget par repas: ${budgetParRepas}$ (${nombreTotalRepas} repas au total)`);
       
       // Construire les filtres de base (sans les types de repas)
       const baseFilters: string[] = [];
@@ -126,7 +136,7 @@ export default function QuickSettings() {
         
         const searchParams = new URLSearchParams({
           ingredients: "",
-          ...(respecterBudget && budget > 0 ? { budget: budget.toString() } : {}),
+          ...(budgetParRepas && budgetParRepas > 0 ? { budget: budgetParRepas.toString() } : {}),
           allergies: Array.from(selectedAllergies).join(","),
           filters: filtersForSearch.join(","),
         });
@@ -157,7 +167,7 @@ export default function QuickSettings() {
           if (addedForType < targetRecettesParType) {
             const additionalSearchParams = new URLSearchParams({
               ingredients: "",
-              ...(respecterBudget && budget > 0 ? { budget: budget.toString() } : {}),
+              ...(budgetParRepas && budgetParRepas > 0 ? { budget: budgetParRepas.toString() } : {}),
               allergies: Array.from(selectedAllergies).join(","),
               filters: baseFilters.join(","),
             });
@@ -467,11 +477,17 @@ export default function QuickSettings() {
                   }
                 })()}
               </p>
-              {respecterBudget && budget > 0 && (
-                <p className="text-xs text-orange-600 dark:text-orange-400 text-center font-medium">
-                  💰 Coût approximatif estimé : ~{((budget / 7) * nbJours).toFixed(2)}$
-                </p>
-              )}
+              {respecterBudget && budget > 0 && (() => {
+                const repasCount = [dejeuner, diner, souper].filter(Boolean).length;
+                const nombreTotalRepas = nbJours * repasCount;
+                const budgetPourNbJours = (budget / 7) * nbJours;
+                const budgetParRepas = nombreTotalRepas > 0 ? budgetPourNbJours / nombreTotalRepas : 0;
+                return (
+                  <p className="text-xs text-orange-600 dark:text-orange-400 text-center font-medium">
+                    💰 Budget pour {nombreTotalRepas} repas : ~{budgetPourNbJours.toFixed(2)}$ (~{budgetParRepas.toFixed(2)}$ par repas)
+                  </p>
+                );
+              })()}
             </div>
           ) : null}
         </div>
