@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Scale, Mail, Code, Calendar, Shield, FileText, Crown, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Scale, Mail, Code, Calendar, Shield, FileText, Crown, Sparkles, ChevronDown } from "lucide-react";
 import Button from "../../../components/ui/button";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ interface SubscriptionStatus {
 export default function InformationsLegales() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mentionsLegalesExpanded, setMentionsLegalesExpanded] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionStatus();
@@ -174,86 +175,118 @@ export default function InformationsLegales() {
           </div>
         </section>
 
-        {/* Mentions légales */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-500" />
-            Mentions légales
-          </h3>
-          <div className="space-y-4 text-gray-700 dark:text-gray-300 text-sm">
-            <p>
-              <strong>Éditeur :</strong> Frigo Magique
-            </p>
-            <p>
-              <strong>Propriétaire :</strong> Jean-François Lefebvre
-            </p>
-            <p>
-              <strong>Adresse :</strong> 2020 du Finfin, Montréal, QC
-            </p>
-            <p>
-              <strong>Numéro d'entreprise du Québec (NEQ) :</strong> [non disponible]
-            </p>
-          </div>
-        </section>
+        {/* Mentions légales - Accordéon */}
+        <section className="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+          <motion.button
+            onClick={() => setMentionsLegalesExpanded(!mentionsLegalesExpanded)}
+            className="w-full flex items-center justify-between p-4 hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-orange-500" />
+              Mentions légales
+            </h3>
+            <motion.div
+              animate={{ rotate: mentionsLegalesExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            </motion.div>
+          </motion.button>
+          <AnimatePresence>
+            {mentionsLegalesExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 pt-0 space-y-6 text-gray-700 dark:text-gray-300 text-sm">
+                  {/* Mentions légales */}
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
+                      Mentions légales
+                    </h4>
+                    <div className="space-y-2">
+                      <p>
+                        <strong>Éditeur :</strong> Frigo Magique
+                      </p>
+                      <p>
+                        <strong>Propriétaire :</strong> Jean-François Lefebvre
+                      </p>
+                      <p>
+                        <strong>Adresse :</strong> 2020 du Finfin, Montréal, QC
+                      </p>
+                      <p>
+                        <strong>Numéro d'entreprise du Québec (NEQ) :</strong> [non disponible]
+                      </p>
+                    </div>
+                  </div>
 
-        {/* Protection des données */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-orange-500" />
-            Protection des données personnelles
-          </h3>
-          <div className="space-y-3 text-gray-700 dark:text-gray-300 text-sm">
-            <p>
-              Conformément à la <strong>Loi sur la protection des renseignements personnels dans le secteur privé</strong> du Québec, 
-              vos données personnelles sont collectées et utilisées uniquement dans le cadre de l'utilisation de l'application.
-            </p>
-            <p>
-              <strong>Données collectées :</strong> Code postal, préférences alimentaires, liste d'épicerie, recettes sauvegardées.
-            </p>
-            <p>
-              <strong>Finalité :</strong> Personnalisation de votre expérience et recherche de rabais dans les circulaires.
-            </p>
-            <p>
-              <strong>Conservation :</strong> Vos données sont conservées aussi longtemps que votre compte est actif. 
-              Vous pouvez demander la suppression de vos données à tout moment en nous contactant.
-            </p>
-            <p>
-              <strong>Droits :</strong> Vous avez le droit d'accéder, de rectifier et de supprimer vos données personnelles.
-            </p>
-          </div>
-        </section>
+                  {/* Protection des données */}
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-orange-500" />
+                      Protection des données personnelles
+                    </h4>
+                    <div className="space-y-2">
+                      <p>
+                        Conformément à la <strong>Loi sur la protection des renseignements personnels dans le secteur privé</strong> du Québec, 
+                        vos données personnelles sont collectées et utilisées uniquement dans le cadre de l'utilisation de l'application.
+                      </p>
+                      <p>
+                        <strong>Données collectées :</strong> Code postal, préférences alimentaires, liste d'épicerie, recettes sauvegardées.
+                      </p>
+                      <p>
+                        <strong>Finalité :</strong> Personnalisation de votre expérience et recherche de rabais dans les circulaires.
+                      </p>
+                      <p>
+                        <strong>Conservation :</strong> Vos données sont conservées aussi longtemps que votre compte est actif. 
+                        Vous pouvez demander la suppression de vos données à tout moment en nous contactant.
+                      </p>
+                      <p>
+                        <strong>Droits :</strong> Vous avez le droit d'accéder, de rectifier et de supprimer vos données personnelles.
+                      </p>
+                    </div>
+                  </div>
 
-        {/* Conditions d'utilisation */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-500" />
-            Conditions d'utilisation
-          </h3>
-          <div className="space-y-3 text-gray-700 dark:text-gray-300 text-sm">
-            <p>
-              L'utilisation de cette application est soumise aux conditions suivantes :
-            </p>
-            <ul className="list-disc list-inside space-y-2 ml-4">
-              <li>L'application est fournie "en l'état" sans garantie d'aucune sorte.</li>
-              <li>Les prix et rabais affichés sont fournis par des tiers et peuvent être sujets à changement.</li>
-              <li>L'utilisateur est responsable de vérifier l'exactitude des informations avant tout achat.</li>
-              <li>Nous ne sommes pas responsables des erreurs ou omissions dans les données des circulaires.</li>
-            </ul>
-          </div>
-        </section>
+                  {/* Conditions d'utilisation */}
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-orange-500" />
+                      Conditions d'utilisation
+                    </h4>
+                    <div className="space-y-2">
+                      <p>
+                        L'utilisation de cette application est soumise aux conditions suivantes :
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 ml-4">
+                        <li>L'application est fournie "en l'état" sans garantie d'aucune sorte.</li>
+                        <li>Les prix et rabais affichés sont fournis par des tiers et peuvent être sujets à changement.</li>
+                        <li>L'utilisateur est responsable de vérifier l'exactitude des informations avant tout achat.</li>
+                        <li>Nous ne sommes pas responsables des erreurs ou omissions dans les données des circulaires.</li>
+                      </ul>
+                    </div>
+                  </div>
 
-        {/* Droit applicable */}
-        <section>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Scale className="w-5 h-5 text-orange-500" />
-            Droit applicable
-          </h3>
-          <div className="space-y-3 text-gray-700 dark:text-gray-300 text-sm">
-            <p>
-              Les présentes conditions sont régies par les lois du Québec et du Canada. 
-              Tout litige sera soumis à la juridiction exclusive des tribunaux du Québec.
-            </p>
-          </div>
+                  {/* Droit applicable */}
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-orange-500" />
+                      Droit applicable
+                    </h4>
+                    <div className="space-y-2">
+                      <p>
+                        Les présentes conditions sont régies par les lois du Québec et du Canada. 
+                        Tout litige sera soumis à la juridiction exclusive des tribunaux du Québec.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
         {/* Dernière mise à jour */}

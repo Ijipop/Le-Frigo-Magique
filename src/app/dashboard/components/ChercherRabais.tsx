@@ -79,7 +79,7 @@ export default function ChercherRabais() {
         onClick={handleSearchDeals}
         disabled={searching || !postalCode}
         variant="primary"
-        className="w-full"
+        className="w-full !px-6 !py-2.5"
         size="md"
       >
         {searching ? (
