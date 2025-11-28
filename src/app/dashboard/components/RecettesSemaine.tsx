@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users } from "lucide-react";
+import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import Modal from "../../../components/ui/modal";
@@ -29,10 +29,13 @@ export default function RecettesSemaine() {
   });
   const [deleteAllModal, setDeleteAllModal] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set());
+  const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set());
 
   // Charger les recettes au montage et écouter les mises à jour
   useEffect(() => {
     fetchRecettes();
+    loadExistingFavorites();
     
     // Écouter les événements de mise à jour
     const handleUpdate = () => {
@@ -44,6 +47,23 @@ export default function RecettesSemaine() {
       window.removeEventListener("recettes-semaine-updated", handleUpdate);
     };
   }, []);
+
+  // Charger les recettes favorites
+  const loadExistingFavorites = async () => {
+    try {
+      const response = await fetch("/api/recettes-favorites");
+      if (response.ok) {
+        const result = await response.json();
+        const favoritesData = result.data || [];
+        if (Array.isArray(favoritesData) && favoritesData.length > 0) {
+          const urls = favoritesData.map((r: { url: string }) => r.url);
+          setFavoriteRecipes(new Set(urls));
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des favoris:", error);
+    }
+  };
 
   const fetchRecettes = async () => {
     try {
@@ -100,6 +120,65 @@ export default function RecettesSemaine() {
     } catch (error) {
       console.error("Erreur lors de la suppression:", error);
       toast.error("Une erreur est survenue");
+    }
+  };
+
+  const handleToggleFavorite = async (recette: RecetteSemaine) => {
+    if (addingToFavorites.has(recette.url)) {
+      return;
+    }
+
+    try {
+      setAddingToFavorites(new Set([...addingToFavorites, recette.url]));
+
+      if (favoriteRecipes.has(recette.url)) {
+        // Retirer des favoris
+        const response = await fetch(`/api/recettes-favorites?url=${encodeURIComponent(recette.url)}`, {
+          method: "DELETE",
+        });
+
+        if (response.ok) {
+          toast.success(`"${recette.titre}" retirée des favoris`);
+          setFavoriteRecipes(new Set([...favoriteRecipes].filter(url => url !== recette.url)));
+          window.dispatchEvent(new CustomEvent("favoris-updated"));
+        } else {
+          toast.error("Erreur lors de la suppression");
+        }
+      } else {
+        // Ajouter aux favoris
+        const response = await fetch("/api/recettes-favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            titre: recette.titre,
+            url: recette.url,
+            image: recette.image,
+            snippet: recette.snippet,
+            source: recette.source,
+            estimatedCost: recette.estimatedCost,
+            servings: recette.servings,
+          }),
+        });
+
+        if (response.ok) {
+          toast.success(`"${recette.titre}" ajoutée aux favoris !`);
+          setFavoriteRecipes(new Set([...favoriteRecipes, recette.url]));
+          window.dispatchEvent(new CustomEvent("favoris-updated"));
+        } else {
+          const error = await response.json();
+          if (response.status === 409) {
+            toast.info("Cette recette est déjà dans vos favoris");
+            setFavoriteRecipes(new Set([...favoriteRecipes, recette.url]));
+          } else {
+            toast.error(error.error || "Erreur lors de l'ajout aux favoris");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors de la gestion des favoris:", error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setAddingToFavorites(new Set([...addingToFavorites].filter(url => url !== recette.url)));
     }
   };
 
@@ -298,6 +377,27 @@ export default function RecettesSemaine() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleFavorite(recette);
+                          }}
+                          disabled={addingToFavorites.has(recette.url)}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            favoriteRecipes.has(recette.url)
+                              ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              : "text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          }`}
+                          aria-label={favoriteRecipes.has(recette.url) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                        >
+                          {addingToFavorites.has(recette.url) ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Heart className={`w-4 h-4 ${favoriteRecipes.has(recette.url) ? "fill-current" : ""}`} />
+                          )}
+                        </motion.button>
                         <a
                           href={recette.url}
                           target="_blank"

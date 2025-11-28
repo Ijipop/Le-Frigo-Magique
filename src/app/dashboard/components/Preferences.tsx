@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Save, Settings } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Save, Settings, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -27,6 +27,7 @@ export default function Preferences() {
   const [budget, setBudget] = useState(100);
   const [selectedAllergies, setSelectedAllergies] = useState<Set<string>>(new Set());
   const [selectedFavorites, setSelectedFavorites] = useState<Set<string>>(new Set());
+  const [postalCode, setPostalCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -47,7 +48,7 @@ export default function Preferences() {
         }
       }
 
-      // Charger les allergies et aliments préférés
+      // Charger les allergies, aliments préférés et code postal
       const preferencesResponse = await fetch("/api/user/preferences");
       if (preferencesResponse.ok) {
         const prefsData = await preferencesResponse.json();
@@ -56,6 +57,9 @@ export default function Preferences() {
         }
         if (prefsData.data?.alimentsPreferes && Array.isArray(prefsData.data.alimentsPreferes)) {
           setSelectedFavorites(new Set(prefsData.data.alimentsPreferes));
+        }
+        if (prefsData.data?.codePostal) {
+          setPostalCode(prefsData.data.codePostal);
         }
       }
     } catch (error) {
@@ -76,15 +80,28 @@ export default function Preferences() {
         body: JSON.stringify({ budgetHebdomadaire: budget }),
       });
 
-      // Sauvegarder les allergies et aliments préférés
+      // Valider le format du code postal (format canadien: A1A1A1)
+      const normalizedCode = postalCode.replace(/\s+/g, "").toUpperCase();
+      if (normalizedCode && !/^[A-Z]\d[A-Z]\d[A-Z]\d$/.test(normalizedCode)) {
+        toast.error("Format de code postal invalide. Utilisez le format canadien (ex: H1A1A1)");
+        return;
+      }
+
+      // Sauvegarder les allergies, aliments préférés et code postal
       await fetch("/api/user/preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           allergies: Array.from(selectedAllergies),
           alimentsPreferes: Array.from(selectedFavorites),
+          codePostal: normalizedCode || null,
         }),
       });
+      
+      setPostalCode(normalizedCode);
+
+      // Déclencher un événement pour mettre à jour les autres composants
+      window.dispatchEvent(new CustomEvent("preferences-updated"));
 
       toast.success("Préférences sauvegardées !");
     } catch (error) {
@@ -253,19 +270,24 @@ export default function Preferences() {
             </div>
             {selectedFavorites.size > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {getFoodNames(Array.from(selectedFavorites)).slice(0, 10).map((foodName, index) => (
-                  <span
-                    key={index}
-                    className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700"
-                  >
-                    {foodName}
-                  </span>
-                ))}
-                {selectedFavorites.size > 10 && (
-                  <span className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700">
-                    +{selectedFavorites.size - 10} autres
-                  </span>
-                )}
+                {Array.from(selectedFavorites).map((foodId) => {
+                  const foodName = getFoodNames([foodId])[0];
+                  return (
+                    <button
+                      key={foodId}
+                      onClick={() => {
+                        const newSelected = new Set(selectedFavorites);
+                        newSelected.delete(foodId);
+                        setSelectedFavorites(newSelected);
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700 hover:bg-rose-200 dark:hover:bg-rose-900/40 transition-colors"
+                      title="Retirer cet aliment"
+                    >
+                      {foodName}
+                      <span className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200">×</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -274,6 +296,27 @@ export default function Preferences() {
             )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Vous pourrez rechercher des recettes avec ces aliments depuis la page Frigo Magique
+            </p>
+          </div>
+
+          {/* Code postal pour les circulaires */}
+          <div className="bg-blue-50 dark:bg-blue-900/10 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="w-5 h-5 text-blue-500" />
+              <span className="text-base font-semibold text-gray-900 dark:text-white">
+                Code postal
+              </span>
+            </div>
+            <input
+              type="text"
+              value={postalCode}
+              onChange={(e) => setPostalCode(e.target.value)}
+              placeholder="H1A1A1"
+              maxLength={7}
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Code postal pour trouver les circulaires d'épiceries près de chez vous
             </p>
           </div>
         </div>

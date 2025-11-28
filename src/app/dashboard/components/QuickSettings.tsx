@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Save, Settings, Calendar, UtensilsCrossed, Loader2, Check, X, Users, Star } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Settings, Calendar, UtensilsCrossed, Loader2, Check, Users, Star } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -28,17 +28,15 @@ export default function QuickSettings() {
   const [selectedAllergies, setSelectedAllergies] = useState<Set<string>>(new Set());
   const [selectedFavorites, setSelectedFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   
-  // Nouveaux états pour la génération de recettes
+  // États pour la génération de recettes
   const [nbJours, setNbJours] = useState(7);
   const [dejeuner, setDejeuner] = useState(false);
   const [diner, setDiner] = useState(false);
   const [souper, setSouper] = useState(false);
   const [respecterBudget, setRespecterBudget] = useState(true);
   const [inspiration, setInspiration] = useState(false);
-  const [postalCode, setPostalCode] = useState<string>("");
   
   // États pour la modal de sélection
   const [selectionModalOpen, setSelectionModalOpen] = useState(false);
@@ -47,24 +45,16 @@ export default function QuickSettings() {
 
   useEffect(() => {
     loadData();
-  }, []);
-
-  // Charger le code postal pour les calculs de prix
-  useEffect(() => {
-    const loadPostalCode = async () => {
-      try {
-        const response = await fetch("/api/user/preferences");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.data?.codePostal) {
-            setPostalCode(data.data.codePostal);
-          }
-        }
-      } catch (error) {
-        console.error("Erreur lors du chargement du code postal:", error);
-      }
+    
+    // Écouter les mises à jour des préférences
+    const handlePreferencesUpdate = () => {
+      loadData();
     };
-    loadPostalCode();
+    
+    window.addEventListener("preferences-updated", handlePreferencesUpdate);
+    return () => {
+      window.removeEventListener("preferences-updated", handlePreferencesUpdate);
+    };
   }, []);
 
   const loadData = async () => {
@@ -80,7 +70,7 @@ export default function QuickSettings() {
         }
       }
 
-      // Charger les allergies
+      // Charger les allergies et aliments préférés
       const preferencesResponse = await fetch("/api/user/preferences");
       if (preferencesResponse.ok) {
         const prefsData = await preferencesResponse.json();
@@ -96,46 +86,6 @@ export default function QuickSettings() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      
-      // Sauvegarder le budget
-      await fetch("/api/user/budget", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ budgetHebdomadaire: budget }),
-      });
-
-      // Sauvegarder les allergies et aliments préférés
-      await fetch("/api/user/preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          allergies: Array.from(selectedAllergies),
-          alimentsPreferes: Array.from(selectedFavorites),
-        }),
-      });
-
-      toast.success("Paramètres sauvegardés !");
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde:", error);
-      toast.error("Une erreur est survenue");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleAllergy = (allergyId: string) => {
-    const newSelected = new Set(selectedAllergies);
-    if (newSelected.has(allergyId)) {
-      newSelected.delete(allergyId);
-    } else {
-      newSelected.add(allergyId);
-    }
-    setSelectedAllergies(newSelected);
   };
 
   const handleGenerateRecipes = async () => {
@@ -255,19 +205,6 @@ export default function QuickSettings() {
         toast.warning(`Seulement ${recipesToShow.length} recettes trouvées sur ${minRecettesTotal} demandées`);
       }
       
-      // Vérifier que les recettes ont bien un estimatedCost et servings
-      console.log("📊 [QuickSettings] Recettes générées:", recipesToShow.map(r => ({
-        title: r.title,
-        estimatedCost: r.estimatedCost,
-        hasCost: r.estimatedCost !== null && r.estimatedCost !== undefined,
-        servings: r.servings,
-        hasServings: r.servings !== null && r.servings !== undefined && r.servings > 0
-      })));
-      
-      // Log pour toutes les recettes qui ont des portions
-      const withServings = recipesToShow.filter(r => r.servings && r.servings > 0);
-      console.log(`📊 [QuickSettings] ${withServings.length}/${recipesToShow.length} recette(s) avec portions détectées`);
-      
       // Ouvrir la modal de sélection avec les recettes générées
       setGeneratedRecipes(recipesToShow);
       setSelectedRecipeUrls(new Set()); // Réinitialiser la sélection
@@ -282,9 +219,13 @@ export default function QuickSettings() {
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50">
-        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-3"></div>
-        <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
+        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4"></div>
+        <div className="space-y-4">
+          <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+        </div>
       </div>
     );
   }
@@ -294,158 +235,128 @@ export default function QuickSettings() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
+      className="space-y-6"
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+      {/* Récapitulatif des préférences */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
+        <div className="flex items-center gap-3 mb-6">
           <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
             <Settings className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Paramètres rapides
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Récapitulatif de vos préférences
           </h2>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          variant="primary"
-          size="sm"
-        >
-          <Save className="w-4 h-4 mr-1" />
-          {saving ? "..." : "Sauver"}
-        </Button>
-      </div>
 
-      <div className="space-y-4">
-        {/* Budget */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-orange-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Budget
+        <div className="space-y-4">
+          {/* Budget */}
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-orange-500" />
+                <span className="text-base font-semibold text-gray-900 dark:text-white">
+                  Budget hebdomadaire
+                </span>
+              </div>
+              <span className="text-2xl font-bold text-orange-500 dark:text-orange-400">
+                {budget}$
               </span>
             </div>
-            <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
-              {budget}$
-            </span>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Modifiez votre budget dans l'onglet Préférences
+            </p>
           </div>
-          <input
-            type="range"
-            min="0"
-            max="1000"
-            step="10"
-            value={budget}
-            onChange={(e) => setBudget(Number(e.target.value))}
-            className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
-            style={{
-              background: `linear-gradient(to right, rgb(249 115 22) 0%, rgb(249 115 22) ${(budget / 1000) * 100}%, rgb(229 231 235) ${(budget / 1000) * 100}%, rgb(229 231 235) 100%)`,
-            }}
-          />
-        </div>
 
-        {/* Allergies */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-red-500" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Allergies ({selectedAllergies.size})
-            </span>
-          </div>
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                toggleAllergy(e.target.value);
-                e.target.value = "";
-              }
-            }}
-            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            <option value="">Ajouter une allergie...</option>
-            {COMMON_ALLERGIES.map((allergy) => (
-              <option key={allergy.id} value={allergy.id}>
-                {allergy.nom}
-              </option>
-            ))}
-          </select>
-          {selectedAllergies.size > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {Array.from(selectedAllergies).map((allergyId) => {
-                const allergy = COMMON_ALLERGIES.find((a) => a.id === allergyId);
-                if (!allergy) return null;
-                return (
-                  <button
-                    key={allergyId}
-                    onClick={() => toggleAllergy(allergyId)}
-                    className="px-2 py-1 text-xs bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-full text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                  >
-                    {allergy.nom} ×
-                  </button>
-                );
-              })}
+          {/* Allergies */}
+          <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <span className="text-base font-semibold text-gray-900 dark:text-white">
+                Allergies ({selectedAllergies.size})
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* Aliments préférés */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Heart className="w-4 h-4 text-rose-500" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Aliments préférés ({selectedFavorites.size})
-            </span>
-          </div>
-          {selectedFavorites.size > 0 ? (
-            <motion.button
-              onClick={() => {
-                // Déclencher la recherche par aliments favoris
-                window.dispatchEvent(new CustomEvent('searchByFavorites', {
-                  detail: { favorites: Array.from(selectedFavorites) }
-                }));
-              }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full px-3 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer text-left"
-            >
-              <p className="text-xs text-rose-700 dark:text-rose-400 font-medium mb-1">
-                {selectedFavorites.size} aliment{selectedFavorites.size > 1 ? "s" : ""} sélectionné{selectedFavorites.size > 1 ? "s" : ""}
+            {selectedAllergies.size > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {Array.from(selectedAllergies).map((allergyId) => {
+                  const allergy = COMMON_ALLERGIES.find((a) => a.id === allergyId);
+                  if (!allergy) return null;
+                  return (
+                    <span
+                      key={allergyId}
+                      className="inline-block px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full border border-red-300 dark:border-red-700"
+                    >
+                      {allergy.nom}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Aucune allergie configurée
               </p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {getFoodNames(Array.from(selectedFavorites)).map((foodName, index) => (
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Modifiez vos allergies dans l'onglet Préférences
+            </p>
+          </div>
+
+          {/* Aliments préférés */}
+          <div className="bg-rose-50 dark:bg-rose-900/10 rounded-xl p-4 border border-rose-200 dark:border-rose-800">
+            <div className="flex items-center gap-2 mb-3">
+              <Heart className="w-5 h-5 text-rose-500" />
+              <span className="text-base font-semibold text-gray-900 dark:text-white">
+                Aliments préférés ({selectedFavorites.size})
+              </span>
+            </div>
+            {selectedFavorites.size > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {getFoodNames(Array.from(selectedFavorites)).slice(0, 10).map((foodName, index) => (
                   <span
                     key={index}
-                    className="inline-block px-2 py-0.5 text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 rounded-full"
+                    className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700"
                   >
                     {foodName}
                   </span>
                 ))}
+                {selectedFavorites.size > 10 && (
+                  <span className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700">
+                    +{selectedFavorites.size - 10} autres
+                  </span>
+                )}
               </div>
-            </motion.button>
-          ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Configurez vos aliments préférés dans la section dédiée ci-dessous
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Aucun aliment préféré configuré
+              </p>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Modifiez vos aliments préférés dans l'onglet Préférences
             </p>
-          )}
+          </div>
+        </div>
+      </div>
+
+      {/* Génération de recettes de la semaine */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
+            <Calendar className="w-5 h-5 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Générer les recettes de la semaine
+          </h2>
         </div>
 
-        {/* Séparateur */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-4 h-4 text-orange-500" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Générer les recettes de la semaine
-            </span>
-          </div>
-
+        <div className="space-y-4">
           {/* Nombre de jours */}
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Nombre de jours (1-7)
             </label>
             <select
               value={nbJours}
               onChange={(e) => setNbJours(Number(e.target.value))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               {[1, 2, 3, 4, 5, 6, 7].map((jour) => (
                 <option key={jour} value={jour}>
@@ -456,9 +367,9 @@ export default function QuickSettings() {
           </div>
 
           {/* Types de repas */}
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-              <UtensilsCrossed className="w-3 h-3 inline mr-1" />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <UtensilsCrossed className="w-4 h-4 inline mr-1" />
               Types de repas
             </label>
             <div className="space-y-2">
@@ -493,8 +404,8 @@ export default function QuickSettings() {
           </div>
 
           {/* Options */}
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Options
             </label>
             <div className="space-y-2">
@@ -505,7 +416,7 @@ export default function QuickSettings() {
                   onChange={(e) => setRespecterBudget(e.target.checked)}
                   className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
                 />
-                <DollarSign className="w-3 h-3 text-orange-500" />
+                <DollarSign className="w-4 h-4 text-orange-500" />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Respecter Budget</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -515,7 +426,7 @@ export default function QuickSettings() {
                   onChange={(e) => setInspiration(e.target.checked)}
                   className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
                 />
-                <Star className="w-3 h-3 text-orange-500" />
+                <Star className="w-4 h-4 text-orange-500" />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Inspiration</span>
               </label>
             </div>
@@ -527,16 +438,16 @@ export default function QuickSettings() {
             disabled={generating || (!dejeuner && !diner && !souper)}
             className="w-full"
             variant="primary"
-            size="sm"
+            size="md"
           >
             {generating ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 Génération...
               </>
             ) : (
               <>
-                <Calendar className="w-4 h-4 mr-2" />
+                <Calendar className="w-5 h-5 mr-2" />
                 Générer les recettes de la semaine
               </>
             )}
@@ -549,7 +460,6 @@ export default function QuickSettings() {
                 {(() => {
                   const repasCount = [dejeuner, diner, souper].filter(Boolean).length;
                   const minRecettes = nbJours * repasCount;
-                  // Le système génère entre 10 et 15 recettes, mais on garantit au moins le minimum demandé
                   if (minRecettes >= 10) {
                     return `10 à 15 recettes seront générées (minimum ${minRecettes} demandées)`;
                   } else {
@@ -605,29 +515,19 @@ export default function QuickSettings() {
                 }
               }
               
-              console.log("📤 [QuickSettings] Portions pour recette:", {
-                title: recipe.title,
-                originalServings: recipe.servings,
-                finalServings: finalServings,
-                servingsType: typeof recipe.servings
-              });
-              
               if (finalCost !== null && finalCost > 0) {
                 totalCost += finalCost;
               }
 
-              // S'assurer que les valeurs null/undefined sont correctement gérées
               const payload = {
                 titre: recipe.title,
                 url: recipe.url,
                 image: recipe.image || null,
                 snippet: recipe.snippet || null,
-                  source: recipe.source || null,
+                source: recipe.source || null,
                 estimatedCost: finalCost !== null && finalCost !== undefined ? finalCost : null,
                 servings: finalServings !== null && finalServings !== undefined ? finalServings : null,
               };
-              
-              console.log("📤 [Frontend] Envoi de la recette:", payload);
               
               const response = await fetch("/api/recettes-semaine", {
                 method: "POST",
@@ -638,27 +538,9 @@ export default function QuickSettings() {
               if (response.ok) {
                 savedCount++;
               } else {
-                // 409 = recette déjà existante, ce n'est pas une vraie erreur
                 if (response.status === 409) {
-                  // Ne pas compter comme une erreur, juste ignorer
                   console.log("ℹ️ [Frontend] Recette déjà existante, ignorée");
                 } else {
-                  // Pour les autres erreurs, logger et compter
-                  let errorData;
-                  try {
-                    const text = await response.text();
-                    try {
-                      errorData = JSON.parse(text);
-                    } catch {
-                      errorData = { error: text };
-                    }
-                  } catch (e) {
-                    errorData = { error: "Erreur inconnue" };
-                  }
-                  console.error("❌ [Frontend] Erreur lors de la sauvegarde:", {
-                    status: response.status,
-                    error: errorData,
-                  });
                   errorCount++;
                 }
               }
@@ -717,25 +599,9 @@ export default function QuickSettings() {
           <AnimatePresence>
             {generatedRecipes.map((recipe, index) => {
               const isSelected = selectedRecipeUrls.has(recipe.url);
-              // Extraire le coût - vérifier plusieurs formats possibles
               const cost = (recipe.estimatedCost !== null && recipe.estimatedCost !== undefined && typeof recipe.estimatedCost === 'number' && recipe.estimatedCost > 0)
                 ? recipe.estimatedCost 
-                : (recipe.cost !== null && recipe.cost !== undefined && typeof recipe.cost === 'number' && recipe.cost > 0)
-                ? recipe.cost
                 : null;
-              
-              // Log pour déboguer
-              if (index === 0) {
-                console.log("🔍 [QuickSettings] Première recette:", {
-                  title: recipe.title,
-                  estimatedCost: recipe.estimatedCost,
-                  cost: recipe.cost,
-                  finalCost: cost,
-                  servings: recipe.servings,
-                  servingsType: typeof recipe.servings,
-                  allKeys: Object.keys(recipe)
-                });
-              }
               
               return (
                 <motion.div
@@ -805,7 +671,6 @@ export default function QuickSettings() {
                           {recipe.source || "Source inconnue"}
                         </span>
                         {(() => {
-                          // Vérifier servings de manière robuste (peut être number, string, ou null)
                           const servingsNum = recipe.servings 
                             ? (typeof recipe.servings === 'number' ? recipe.servings : parseInt(String(recipe.servings), 10))
                             : null;
@@ -823,7 +688,6 @@ export default function QuickSettings() {
                         {cost !== null && cost !== undefined && cost > 0 ? (
                           <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400 whitespace-nowrap bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
                             {(() => {
-                              // Vérifier servings de manière robuste
                               const servingsNum = recipe.servings 
                                 ? (typeof recipe.servings === 'number' ? recipe.servings : parseInt(String(recipe.servings), 10))
                                 : null;
@@ -858,4 +722,3 @@ export default function QuickSettings() {
     </motion.div>
   );
 }
-
