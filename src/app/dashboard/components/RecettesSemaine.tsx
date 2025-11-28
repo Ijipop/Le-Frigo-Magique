@@ -126,7 +126,7 @@ export default function RecettesSemaine() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50"
+      className="bg-white dark:bg-gray-800 rounded-2xl p-4 md:p-6 shadow-lg dark:shadow-gray-900/50 overflow-hidden"
     >
       <motion.div
         initial={{ opacity: 0, x: -10 }}
@@ -192,7 +192,7 @@ export default function RecettesSemaine() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-2.5 max-h-[500px] overflow-y-auto pr-2"
+            className="space-y-2.5 max-h-[500px] overflow-y-auto overflow-x-hidden pr-1 md:pr-2"
           >
             <AnimatePresence>
               {recettes.map((recette, index) => (
@@ -202,8 +202,8 @@ export default function RecettesSemaine() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20, scale: 0.8 }}
                   transition={{ duration: 0.2, delay: index * 0.05 }}
-                  whileHover={{ scale: 1.01, x: 4 }}
-                  className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group"
+                  whileHover={{ scale: 1.01 }}
+                  className="flex gap-3 p-2 md:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-gray-600 group overflow-hidden"
                 >
                   {/* Miniature */}
                   <div className="flex-shrink-0">

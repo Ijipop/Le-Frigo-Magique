@@ -502,21 +502,21 @@ export default function ListeEpicerie() {
                   }`}
                 >
                   {/* En-tête cliquable */}
-                  <button
-                    onClick={() => {
-                      setExpandedItems(prev => {
-                        const newSet = new Set(prev);
-                        if (newSet.has(ligne.id)) {
-                          newSet.delete(ligne.id);
-                        } else {
-                          newSet.add(ligne.id);
-                        }
-                        return newSet;
-                      });
-                    }}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0 text-left">
+                  <div className="w-full flex items-center justify-between p-3">
+                    <div
+                      onClick={() => {
+                        setExpandedItems(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(ligne.id)) {
+                            newSet.delete(ligne.id);
+                          } else {
+                            newSet.add(ligne.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      className="flex-1 min-w-0 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors rounded-lg p-2 -m-2"
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {ligne.nom}
@@ -564,6 +564,18 @@ export default function ListeEpicerie() {
                         <motion.div
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={{ duration: 0.2 }}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setExpandedItems(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(ligne.id)) {
+                                newSet.delete(ligne.id);
+                              } else {
+                                newSet.add(ligne.id);
+                              }
+                              return newSet;
+                            });
+                          }}
                         >
                           <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
                         </motion.div>
@@ -589,7 +601,7 @@ export default function ListeEpicerie() {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Contenu déroulant avec les rabais groupés par épicerie */}
                   {hasDeal && allDeals.length > 0 && (
