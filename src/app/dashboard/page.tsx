@@ -3,14 +3,14 @@ import { redirect } from "next/navigation";
 import Tabs from "../../components/ui/tabs";
 import GardeManger from "./components/GardeManger";
 import QuickSettings from "./components/QuickSettings";
-import FlyersSettings from "./components/FlyersSettings";
 import ListeEpicerie from "./components/ListeEpicerie";
+import ChercherRabais from "./components/ChercherRabais";
 import CategoryItemSelector from "./components/CategoryItemSelector";
 import RecipeSearchContainer from "./components/RecipeSearchContainer";
 import RecettesSemaine from "./components/RecettesSemaine";
 import InformationsLegales from "./components/InformationsLegales";
 import Favoris from "./components/Favoris";
-import { ChefHat, Settings, ShoppingBag, Scale, Heart, User } from "lucide-react";
+import { ChefHat, Settings, ShoppingBag, Scale, Heart, User, DollarSign } from "lucide-react";
 import Preferences from "./components/Preferences";
 
 export default async function DashboardPage() {
@@ -47,19 +47,19 @@ export default async function DashboardPage() {
     },
     {
       id: "circulaire",
-      label: "Circulaire",
+      label: "Liste/Rabais",
       icon: <ShoppingBag className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
+          <ChercherRabais />
           <ListeEpicerie />
-          <FlyersSettings />
         </div>
       ),
     },
     {
       id: "budget",
       label: "Budget",
-      icon: <Settings className="w-4 h-4" />,
+      icon: <DollarSign className="w-4 h-4" />,
       content: (
         <div className="space-y-6">
           <QuickSettings />

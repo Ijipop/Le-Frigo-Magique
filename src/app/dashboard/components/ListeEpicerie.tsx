@@ -83,6 +83,27 @@ export default function ListeEpicerie() {
     }
   }, [liste]);
 
+  // Écouter les événements de mise à jour des deals
+  useEffect(() => {
+    const handleDealsUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        // Mettre à jour directement avec les résultats reçus
+        const data = customEvent.detail;
+        if (data.results && data.results.length > 0) {
+          setDealsResults({ results: data.results });
+        } else {
+          setDealsResults(null);
+        }
+      }
+    };
+    
+    window.addEventListener("deals-updated", handleDealsUpdate);
+    return () => {
+      window.removeEventListener("deals-updated", handleDealsUpdate);
+    };
+  }, []);
+
   const fetchListe = async () => {
     try {
       setLoading(true);
@@ -388,6 +409,11 @@ export default function ListeEpicerie() {
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
             Liste d'épicerie
           </h2>
+          {liste && liste.lignes.length > 0 && (
+            <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
+              ({liste.lignes.length} {liste.lignes.length > 1 ? "items" : "item"})
+            </span>
+          )}
         </div>
         <Button
           onClick={() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Heart, ExternalLink, Loader2, Trash2, ChefHat } from "lucide-react";
+import { Heart, ExternalLink, Loader2, Trash2, ChefHat, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -21,6 +21,7 @@ export default function Favoris() {
   const [favorites, setFavorites] = useState<RecetteFavorite[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
+  const [addingToWeek, setAddingToWeek] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadFavorites();
@@ -51,6 +52,47 @@ export default function Favoris() {
       toast.error("Une erreur est survenue");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddToWeek = async (favorite: RecetteFavorite) => {
+    if (addingToWeek.has(favorite.url)) {
+      return;
+    }
+
+    try {
+      setAddingToWeek(new Set([...addingToWeek, favorite.url]));
+
+      const response = await fetch("/api/recettes-semaine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titre: favorite.titre,
+          url: favorite.url,
+          image: favorite.image,
+          snippet: favorite.snippet,
+          source: favorite.source,
+          estimatedCost: favorite.estimatedCost,
+          servings: favorite.servings,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(`"${favorite.titre}" ajoutée aux recettes de la semaine !`);
+        window.dispatchEvent(new CustomEvent("recettes-semaine-updated"));
+      } else {
+        const error = await response.json();
+        if (response.status === 409) {
+          toast.info("Cette recette est déjà dans vos recettes de la semaine");
+        } else {
+          toast.error(error.error || "Erreur lors de l'ajout");
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'ajout:", error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setAddingToWeek(new Set([...addingToWeek].filter(url => url !== favorite.url)));
     }
   };
 
@@ -227,6 +269,31 @@ export default function Favoris() {
                       <motion.button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleAddToWeek(favorite);
+                        }}
+                        disabled={addingToWeek.has(favorite.url)}
+                        className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                        title="Ajouter aux recettes de la semaine"
+                      >
+                        {addingToWeek.has(favorite.url) ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4" />
+                        )}
+                      </motion.button>
+                      <a
+                        href={favorite.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        title="Voir la recette"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                      <motion.button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDelete(favorite);
                         }}
                         disabled={deleting.has(favorite.id)}
@@ -239,15 +306,6 @@ export default function Favoris() {
                           <Trash2 className="w-4 h-4" />
                         )}
                       </motion.button>
-                      <a
-                        href={favorite.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
                     </div>
                   </div>
                 </div>

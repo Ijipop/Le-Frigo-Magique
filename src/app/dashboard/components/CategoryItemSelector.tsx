@@ -495,22 +495,41 @@ export default function CategoryItemSelector() {
         </div>
 
         {/* Boutons d'action - Optimisés pour mobile */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <motion.div 
-            whileHover={{ scale: 1.02 }} 
-            whileTap={{ scale: 0.98 }} 
-            className="flex-1 sm:flex-initial"
-          >
-            <Button
-              onClick={() => setAddModalOpen(true)}
-              variant="primary"
-              size="sm"
-              className="w-full sm:w-auto"
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+            <motion.div 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }} 
+              className="flex-1 sm:flex-initial"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Ajouter un aliment
-            </Button>
-          </motion.div>
+              <Button
+                onClick={() => setAddModalOpen(true)}
+                variant="primary"
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Ajouter un aliment
+              </Button>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ scale: 1.02 }} 
+              whileTap={{ scale: 0.98 }}
+              className="flex-1 sm:flex-initial"
+            >
+              <Button
+                onClick={handleResetPreferences}
+                disabled={saving || loadingPreferences || selectedItems.size === 0}
+                variant="danger"
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                <RotateCcw className="w-4 h-4 mr-1" />
+                Réinitialiser
+              </Button>
+            </motion.div>
+          </div>
           
           <motion.div 
             whileHover={{ scale: 1.02 }} 
@@ -526,23 +545,6 @@ export default function CategoryItemSelector() {
             >
               <Save className="w-4 h-4 mr-1" />
               {saving ? "Sauvegarde..." : "Sauvegarder"}
-            </Button>
-          </motion.div>
-          
-          <motion.div 
-            whileHover={{ scale: 1.02 }} 
-            whileTap={{ scale: 0.98 }}
-            className="flex-1 sm:flex-initial"
-          >
-            <Button
-              onClick={handleResetPreferences}
-              disabled={saving || loadingPreferences || selectedItems.size === 0}
-              variant="danger"
-              size="sm"
-              className="w-full sm:w-auto"
-            >
-              <RotateCcw className="w-4 h-4 mr-1" />
-              Réinitialiser
             </Button>
           </motion.div>
         </div>
