@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Settings, Calendar, UtensilsCrossed, Loader2, Check, Users, Star } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Settings, Calendar, UtensilsCrossed, Loader2, Check, Users, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -42,6 +42,9 @@ export default function QuickSettings() {
   const [selectionModalOpen, setSelectionModalOpen] = useState(false);
   const [generatedRecipes, setGeneratedRecipes] = useState<any[]>([]);
   const [selectedRecipeUrls, setSelectedRecipeUrls] = useState<Set<string>>(new Set());
+  
+  // État pour l'accordéon du récapitulatif
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -247,103 +250,114 @@ export default function QuickSettings() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      {/* Récapitulatif des préférences */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg dark:shadow-gray-900/50">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-orange-400 to-orange-500">
-            <Settings className="w-5 h-5 text-white" />
+      {/* Récapitulatif des préférences - Accordéon */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm dark:shadow-gray-900/30 border border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setIsPreferencesOpen(!isPreferencesOpen)}
+          className="w-full flex items-center justify-between gap-2 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Récapitulatif de vos préférences
+            </h3>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Récapitulatif de vos préférences
-          </h2>
-        </div>
+          {isPreferencesOpen ? (
+            <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          )}
+        </button>
 
-        <div className="space-y-4">
-          {/* Budget */}
-          <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-orange-500" />
-                <span className="text-base font-semibold text-gray-900 dark:text-white">
-                  Budget hebdomadaire
-                </span>
-              </div>
-              <span className="text-2xl font-bold text-orange-500 dark:text-orange-400">
-                {budget}$
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Modifiez votre budget dans l'onglet Préférences
-            </p>
-          </div>
-
-          {/* Allergies */}
-          <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              <span className="text-base font-semibold text-gray-900 dark:text-white">
-                Allergies ({selectedAllergies.size})
-              </span>
-            </div>
-            {selectedAllergies.size > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {Array.from(selectedAllergies).map((allergyId) => {
-                  const allergy = COMMON_ALLERGIES.find((a) => a.id === allergyId);
-                  if (!allergy) return null;
-                  return (
-                    <span
-                      key={allergyId}
-                      className="inline-block px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full border border-red-300 dark:border-red-700"
-                    >
-                      {allergy.nom}
+        <AnimatePresence>
+          {isPreferencesOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-4 space-y-3">
+                {/* Budget */}
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-orange-500" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        Budget hebdomadaire
+                      </span>
+                    </div>
+                    <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
+                      {budget}$
                     </span>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Aucune allergie configurée
-              </p>
-            )}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Modifiez vos allergies dans l'onglet Préférences
-            </p>
-          </div>
+                  </div>
+                </div>
 
-          {/* Aliments préférés */}
-          <div className="bg-rose-50 dark:bg-rose-900/10 rounded-xl p-4 border border-rose-200 dark:border-rose-800">
-            <div className="flex items-center gap-2 mb-3">
-              <Heart className="w-5 h-5 text-rose-500" />
-              <span className="text-base font-semibold text-gray-900 dark:text-white">
-                Aliments préférés ({selectedFavorites.size})
-              </span>
-            </div>
-            {selectedFavorites.size > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {getFoodNames(Array.from(selectedFavorites)).slice(0, 10).map((foodName, index) => (
-                  <span
-                    key={index}
-                    className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700"
-                  >
-                    {foodName}
-                  </span>
-                ))}
-                {selectedFavorites.size > 10 && (
-                  <span className="inline-block px-3 py-1.5 text-sm bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700">
-                    +{selectedFavorites.size - 10} autres
-                  </span>
-                )}
+                {/* Allergies */}
+                <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-3 border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Allergies ({selectedAllergies.size})
+                    </span>
+                  </div>
+                  {selectedAllergies.size > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from(selectedAllergies).map((allergyId) => {
+                        const allergy = COMMON_ALLERGIES.find((a) => a.id === allergyId);
+                        if (!allergy) return null;
+                        return (
+                          <span
+                            key={allergyId}
+                            className="inline-block px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full border border-red-300 dark:border-red-700"
+                          >
+                            {allergy.nom}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Aucune allergie configurée
+                    </p>
+                  )}
+                </div>
+
+                {/* Aliments préférés */}
+                <div className="bg-rose-50 dark:bg-rose-900/10 rounded-lg p-3 border border-rose-200 dark:border-rose-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Heart className="w-4 h-4 text-rose-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Aliments préférés ({selectedFavorites.size})
+                    </span>
+                  </div>
+                  {selectedFavorites.size > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {getFoodNames(Array.from(selectedFavorites)).slice(0, 8).map((foodName, index) => (
+                        <span
+                          key={index}
+                          className="inline-block px-2 py-1 text-xs bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700"
+                        >
+                          {foodName}
+                        </span>
+                      ))}
+                      {selectedFavorites.size > 8 && (
+                        <span className="inline-block px-2 py-1 text-xs bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 rounded-full border border-rose-300 dark:border-rose-700">
+                          +{selectedFavorites.size - 8} autres
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Aucun aliment préféré configuré
+                    </p>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Aucun aliment préféré configuré
-              </p>
-            )}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Modifiez vos aliments préférés dans l'onglet Préférences
-            </p>
-          </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Génération de recettes de la semaine */}
@@ -353,7 +367,7 @@ export default function QuickSettings() {
             <Calendar className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Générer les recettes de la semaine
+            Générer les recettes de la semaine selon votre budget et vos allergies
           </h2>
         </div>
 
