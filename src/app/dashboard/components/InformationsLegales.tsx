@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Scale, Mail, Code, Calendar, Shield, FileText, Crown, Sparkles, ChevronDown } from "lucide-react";
+import { Scale, Mail, Code, Calendar, Shield, FileText, Crown, Sparkles, ChevronDown, BookOpen, ChefHat, ShoppingBag, DollarSign, Heart, User } from "lucide-react";
 import Button from "../../../components/ui/button";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ export default function InformationsLegales() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [mentionsLegalesExpanded, setMentionsLegalesExpanded] = useState(false);
+  const [tutorialExpanded, setTutorialExpanded] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionStatus();
@@ -132,6 +133,151 @@ export default function InformationsLegales() {
               </div>
             </div>
           )}
+        </section>
+
+        {/* Tutoriel - Accordéon */}
+        <section className="bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
+          <motion.button
+            onClick={() => setTutorialExpanded(!tutorialExpanded)}
+            className="w-full flex items-center justify-between p-4 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-500" />
+              Comment utiliser le site
+            </h3>
+            <motion.div
+              animate={{ rotate: tutorialExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            </motion.div>
+          </motion.button>
+          <AnimatePresence>
+            {tutorialExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="p-4 pt-0 space-y-4 text-gray-700 dark:text-gray-300">
+                  {/* Étape 1 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <User className="w-4 h-4 text-orange-500" />
+                          Configurez vos préférences
+                        </h4>
+                        <p className="text-sm">
+                          Cliquez sur l'onglet <strong>"Préférences"</strong> en haut. 
+                          Indiquez votre budget, vos allergies et vos aliments préférés. 
+                          <strong className="text-orange-600 dark:text-orange-400"> Important : </strong>
+                          N'oubliez pas de cliquer sur le bouton <strong>"Sauvegarder"</strong> pour enregistrer vos choix !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Étape 2 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <ChefHat className="w-4 h-4 text-orange-500" />
+                          Trouvez des recettes
+                        </h4>
+                        <p className="text-sm">
+                          Allez dans <strong>"Frigo Magique"</strong>. 
+                          Le site recherche automatiquement des recettes selon :
+                        </p>
+                        <ul className="text-sm mt-2 space-y-1 ml-4 list-disc">
+                          <li>Ce que vous avez dans votre <strong>garde-manger</strong></li>
+                          <li>Vos <strong>aliments favoris</strong> (configurés dans Préférences)</li>
+                          <li>Les <strong>recherches rapides</strong> (filtres comme Keto, Au grill, etc.)</li>
+                        </ul>
+                        <p className="text-sm mt-2">
+                          Des recettes apparaissent automatiquement ! Cliquez sur le <strong>+</strong> pour les ajouter à votre semaine.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Étape 3 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                        3
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-orange-500" />
+                          Générez votre menu de la semaine
+                        </h4>
+                        <p className="text-sm">
+                          Dans l'onglet <strong>"Budget"</strong>, choisissez le nombre de jours et les repas (déjeuner, dîner, souper). 
+                          Cliquez sur <strong>"Générer les recettes de la semaine"</strong>. 
+                          Sélectionnez celles qui vous plaisent et ajoutez-les !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Étape 4 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                        4
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <ShoppingBag className="w-4 h-4 text-orange-500" />
+                          Faites votre liste d'épicerie
+                        </h4>
+                        <p className="text-sm">
+                          Allez dans <strong>"Liste/Rabais"</strong>. 
+                          Cliquez sur <strong>"Ajouter"</strong> pour mettre des produits dans votre liste. 
+                          Cliquez sur <strong>"Chercher les rabais"</strong> pour voir les meilleurs prix près de chez vous !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Étape 5 */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
+                        5
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <Heart className="w-4 h-4 text-orange-500" />
+                          Sauvegardez vos recettes préférées
+                        </h4>
+                        <p className="text-sm">
+                          Quand vous trouvez une recette que vous aimez, cliquez sur le <strong>cœur</strong> ❤️. 
+                          Elle sera sauvegardée dans l'onglet <strong>"Favoris"</strong> pour plus tard !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <p className="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                      💡 <strong>Astuce :</strong> Vous pouvez revenir à ce tutoriel à tout moment en cliquant sur "À propos" !
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
         {/* Informations de l'application */}
