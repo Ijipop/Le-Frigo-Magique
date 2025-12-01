@@ -128,3 +128,38 @@ export async function POST(req: Request) {
   }
 }
 
+// DELETE - Supprimer tous les articles du garde-manger
+export async function DELETE() {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    const utilisateur = await getOrCreateUser(userId);
+
+    if (!utilisateur) {
+      return NextResponse.json<ApiResponse>(
+        { error: "Impossible de récupérer l'utilisateur" },
+        { status: 500 }
+      );
+    }
+
+    // Supprimer tous les articles du garde-manger de l'utilisateur
+    const result = await prisma.articleGardeManger.deleteMany({
+      where: { utilisateurId: utilisateur.id },
+    });
+
+    return NextResponse.json<ApiResponse>({
+      data: { success: true, deletedCount: result.count },
+      message: `${result.count} article${result.count > 1 ? "s" : ""} supprimé${result.count > 1 ? "s" : ""}`,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la suppression du garde-manger:", error);
+    return NextResponse.json<ApiResponse>(
+      { error: "Erreur serveur" },
+      { status: 500 }
+    );
+  }
+}

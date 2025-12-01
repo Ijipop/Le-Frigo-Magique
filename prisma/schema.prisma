@@ -139,6 +139,16 @@ model WebSearchCache {
   updatedAt   DateTime @updatedAt
 }
 
+model SpoonacularRecipeCache {
+  id            Int      @id @default(autoincrement())
+  spoonacularId Int      @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  json          Json
+
+  @@index([spoonacularId])
+}
+
 model RecetteSemaine {
   id            String      @id @default(cuid())
   utilisateurId String
@@ -151,9 +161,11 @@ model RecetteSemaine {
   updatedAt     DateTime    @updatedAt
   estimatedCost Float?
   servings      Int?
+  spoonacularId Int?
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
 
   @@index([utilisateurId])
+  @@index([spoonacularId])
 }
 
 model PrixIngredient {

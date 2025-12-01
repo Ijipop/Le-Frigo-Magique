@@ -43,8 +43,6 @@ export default async function DashboardPage() {
           <div>
             <RecipeSearchContainer />
           </div>
-
-          <GardeManger />
         </div>
       ),
     },
@@ -56,6 +54,7 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <ChercherRabais />
           <ListeEpicerie />
+          <GardeManger />
         </div>
       ),
     },

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown, Trash } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
@@ -52,6 +52,7 @@ export default function ListeEpicerie() {
     ligneId: null,
     ligneNom: "",
   });
+  const [deleteAllModal, setDeleteAllModal] = useState(false);
   const [dealsResults, setDealsResults] = useState<{ results: FlyerResult[] } | null>(null);
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -260,6 +261,27 @@ export default function ListeEpicerie() {
     }
   };
 
+  const handleDeleteAllConfirm = async () => {
+    try {
+      const response = await fetch("/api/liste-epicerie", {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Liste d'épicerie vidée");
+        fetchListe();
+        setDeleteAllModal(false);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Erreur lors de la suppression");
+      }
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast.error("Une erreur est survenue");
+    }
+  };
+
   const fetchDeals = async () => {
     try {
       setLoadingDeals(true);
@@ -415,17 +437,29 @@ export default function ListeEpicerie() {
             </span>
           )}
         </div>
-        <Button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          variant="primary"
-          size="sm"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Ajouter
-        </Button>
+        <div className="flex items-center gap-2">
+          {liste && liste.lignes.length > 0 && (
+            <Button
+              onClick={() => setDeleteAllModal(true)}
+              variant="danger"
+              size="sm"
+            >
+              <Trash className="w-4 h-4 mr-1" />
+              Tout supprimer
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            variant="primary"
+            size="sm"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Ajouter
+          </Button>
+        </div>
       </div>
 
       {liste && liste.lignes.length > 0 && (() => {
@@ -787,6 +821,25 @@ export default function ListeEpicerie() {
       >
         <p className="text-gray-600 dark:text-gray-300">
           Êtes-vous sûr de vouloir supprimer <strong>{deleteModal.ligneNom}</strong> de votre liste d'épicerie ?
+        </p>
+      </Modal>
+
+      {/* Modal de confirmation de suppression de toute la liste */}
+      <Modal
+        isOpen={deleteAllModal}
+        onClose={() => setDeleteAllModal(false)}
+        title="Tout supprimer"
+        onConfirm={handleDeleteAllConfirm}
+        variant="danger"
+        confirmText="Tout supprimer"
+        cancelText="Annuler"
+      >
+        <p className="text-gray-600 dark:text-gray-300">
+          Êtes-vous sûr de vouloir supprimer <strong>tous les items</strong> de votre liste d'épicerie ?
+          <br />
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Cette action est irréversible.
+          </span>
         </p>
       </Modal>
     </motion.div>

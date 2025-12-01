@@ -187,3 +187,52 @@ export async function POST(req: Request) {
   }
 }
 
+// DELETE - Supprimer toutes les lignes de la liste d'épicerie
+export async function DELETE() {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    const utilisateur = await getOrCreateUser(userId);
+
+    if (!utilisateur) {
+      return NextResponse.json<ApiResponse>(
+        { error: "Impossible de récupérer l'utilisateur" },
+        { status: 500 }
+      );
+    }
+
+    // Récupérer la liste d'épicerie active
+    const liste = await prisma.listeEpicerie.findFirst({
+      where: { utilisateurId: utilisateur.id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!liste) {
+      return NextResponse.json<ApiResponse>(
+        { error: "Aucune liste d'épicerie trouvée" },
+        { status: 404 }
+      );
+    }
+
+    // Supprimer toutes les lignes de la liste
+    const result = await prisma.ligneListe.deleteMany({
+      where: { listeId: liste.id },
+    });
+
+    return NextResponse.json<ApiResponse>({
+      data: { success: true, deletedCount: result.count },
+      message: `${result.count} item${result.count > 1 ? "s" : ""} supprimé${result.count > 1 ? "s" : ""}`,
+    });
+  } catch (error) {
+    console.error("Erreur lors de la suppression de la liste:", error);
+    return NextResponse.json<ApiResponse>(
+      { error: "Erreur serveur" },
+      { status: 500 }
+    );
+  }
+}
+
