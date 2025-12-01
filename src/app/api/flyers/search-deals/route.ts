@@ -499,12 +499,36 @@ export const GET = withRateLimit(
       return b.totalSavings - a.totalSavings;
     });
 
+    // 🎯 CALCULER LE MEILLEUR RABAIS PAR INGRÉDIENT (pas la somme de tous les rabais)
+    // Si on a 5 rabais pour "bacon" dans 5 magasins, on ne va pas acheter 5 fois le bacon !
+    // On prend seulement le meilleur rabais pour chaque ingrédient
+    const bestSavingsByIngredient = new Map<string, number>();
+    
+    // Parcourir tous les résultats pour trouver le meilleur rabais par ingrédient
+    results.forEach(result => {
+      result.matches.forEach(match => {
+        if (match.savings && match.savings > 0) {
+          const currentBest = bestSavingsByIngredient.get(match.ingredient) || 0;
+          if (match.savings > currentBest) {
+            bestSavingsByIngredient.set(match.ingredient, match.savings);
+          }
+        }
+      });
+    });
+    
+    // Calculer le total des meilleurs rabais (un seul rabais par ingrédient)
+    const totalBestSavings = Array.from(bestSavingsByIngredient.values()).reduce(
+      (sum, savings) => sum + savings,
+      0
+    );
+
     return NextResponse.json({
       postalCode: (preferences as Preferences & { codePostal: string | null }).codePostal,
       ingredientsCount: ingredients.length,
       flyersChecked: groceryFlyers.length,
       results,
       totalMatches: results.reduce((sum, r) => sum + r.matches.length, 0),
+      totalBestSavings, // Meilleur rabais total (un seul par ingrédient)
     });
   },
   async () => {

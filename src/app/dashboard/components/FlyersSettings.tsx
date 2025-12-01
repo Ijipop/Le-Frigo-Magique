@@ -32,16 +32,19 @@ interface FlyerResult {
   totalSavings: number;
 }
 
+interface DealsResults {
+  results: FlyerResult[];
+  totalMatches: number;
+  ingredientsCount: number;
+  totalBestSavings?: number; // Meilleur rabais total (un seul par ingrédient)
+}
+
 export default function FlyersSettings() {
   const [postalCode, setPostalCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [dealsResults, setDealsResults] = useState<{
-    results: FlyerResult[];
-    totalMatches: number;
-    ingredientsCount: number;
-  } | null>(null);
+  const [dealsResults, setDealsResults] = useState<DealsResults | null>(null);
   const [expandedFlyers, setExpandedFlyers] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -241,11 +244,26 @@ export default function FlyersSettings() {
                         {dealsResults.totalMatches} rabais trouvés
                       </span>
                       <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
-                        {dealsResults.results.reduce((sum, r) => sum + r.totalSavings, 0).toFixed(2)}$
+                        {(dealsResults.totalBestSavings ?? (() => {
+                          // Calculer le meilleur rabais par ingrédient si totalBestSavings n'est pas disponible
+                          // Parcourir TOUS les résultats pour trouver le meilleur rabais par ingrédient
+                          const bestByIngredient = new Map<string, number>();
+                          dealsResults.results.forEach(result => {
+                            result.matches.forEach(match => {
+                              if (match.savings && match.savings > 0) {
+                                const current = bestByIngredient.get(match.ingredient) || 0;
+                                if (match.savings > current) {
+                                  bestByIngredient.set(match.ingredient, match.savings);
+                                }
+                              }
+                            });
+                          });
+                          return Array.from(bestByIngredient.values()).reduce((sum, savings) => sum + savings, 0);
+                        })()).toFixed(2)}$
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Économies potentielles totales
+                      Économies potentielles (meilleur rabais par ingrédient)
                     </p>
                   </div>
 

@@ -6,6 +6,7 @@ import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Spa
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
+import { matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 
 interface LigneListe {
   id: string;
@@ -326,11 +327,9 @@ export default function ListeEpicerie() {
     // Parcourir tous les résultats de flyers
     for (const result of dealsResults.results) {
       for (const match of result.matches) {
-        // Vérifier si le match correspond à l'ingrédient
-        const normalizedMatch = match.ingredient.toLowerCase().trim();
-        if (normalizedMatch === normalizedIngredient || 
-            normalizedIngredient.includes(normalizedMatch) ||
-            normalizedMatch.includes(normalizedIngredient)) {
+        // Utiliser le matching strict pour éviter les faux positifs
+        // Ex: "beurre" ne doit pas matcher "beurre d'arachide"
+        if (matchIngredients(ingredientName, match.ingredient)) {
           // Utiliser le prix en rabais (current_price) s'il est disponible
           const currentPrice = match.matchedItem.current_price;
           if (currentPrice) {
@@ -382,29 +381,37 @@ export default function ListeEpicerie() {
   const calculerTotal = () => {
     if (!liste) return { total: 0, totalAvecRabais: 0, economie: 0 };
     
-    let total = 0;
-    let totalAvecRabais = 0;
+    let total = 0; // Total estimé (prix estimé × quantité pour chaque item)
+    let totalAvecRabais = 0; // Total avec rabais (meilleur prix unitaire × quantité pour chaque item)
+    let economie = 0; // Économie totale réalisée
     
     liste.lignes.forEach((ligne) => {
-      // Calculer le prix total pour cette ligne (prix unitaire * quantité)
-      const prixUnitaireEstime = ligne.prixEstime || 0;
       const quantite = ligne.quantite || 1;
+      const prixUnitaireEstime = ligne.prixEstime || 0;
+      
+      // Calculer le prix total estimé pour cette ligne (prix unitaire estimé × quantité)
       const prixTotalEstime = prixUnitaireEstime * quantite;
       total += prixTotalEstime;
       
-      // Chercher un prix en rabais pour cet ingrédient
-      const prixUnitaireRabais = getBestPriceForIngredient(ligne.nom);
-      if (prixUnitaireRabais !== null) {
-        // Multiplier le prix unitaire en rabais par la quantité
-        const prixTotalRabais = prixUnitaireRabais * quantite;
+      // Chercher le meilleur prix en rabais pour cet ingrédient (meilleur deal de toutes les épiceries)
+      const meilleurPrixUnitaire = getBestPriceForIngredient(ligne.nom);
+      
+      if (meilleurPrixUnitaire !== null) {
+        // Multiplier le meilleur prix unitaire par la quantité demandée dans la liste
+        // Exemple: si meilleur prix = 4.98$ et quantité = 8, alors prixTotalRabais = 4.98 × 8 = 39.84$
+        const prixTotalRabais = meilleurPrixUnitaire * quantite;
         totalAvecRabais += prixTotalRabais;
+        
+        // Calculer l'économie pour cet ingrédient (si on a un prix estimé)
+        if (prixUnitaireEstime > 0 && prixUnitaireEstime > meilleurPrixUnitaire) {
+          const economieLigne = (prixUnitaireEstime - meilleurPrixUnitaire) * quantite;
+          economie += economieLigne;
+        }
       } else {
         // Si pas de rabais trouvé, utiliser le prix estimé total
         totalAvecRabais += prixTotalEstime;
       }
     });
-    
-    const economie = total - totalAvecRabais;
     
     return { total, totalAvecRabais, economie };
   };
@@ -468,40 +475,58 @@ export default function ListeEpicerie() {
         
         return (
           <div className="mb-4 space-y-2">
-            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {hasDeals ? "Total avec rabais:" : "Total estimé:"}
+            {/* Sous-total avec rabais */}
+            <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                  {hasDeals ? "Sous-total avec rabais" : "Sous-total estimé"}
                 </span>
-                <span className="text-lg font-bold text-orange-500 dark:text-orange-400">
+                <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                   {totalAvecRabais.toFixed(2)}$
                 </span>
               </div>
+              {hasDeals && total > 0 && (
+                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                  <span>Prix original:</span>
+                  <span className="line-through">{total.toFixed(2)}$</span>
+                </div>
+              )}
             </div>
+            
+            {/* Économie totale - Box verte */}
             {hasDeals && economie > 0 && (
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="p-5 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-800/40 dark:to-green-900/30 rounded-xl border-2 border-green-400 dark:border-green-600 shadow-lg">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-green-500" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Économie totale:
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-500 dark:bg-green-600 rounded-lg">
+                      <Tag className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-base font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
+                        Total des économies
+                      </span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                        En achetant les meilleurs deals disponibles
+                      </span>
+                    </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-lg font-bold text-green-500 dark:text-green-400">
+                    <span className="text-3xl font-extrabold text-green-700 dark:text-green-300">
                       -{economie.toFixed(2)}$
                     </span>
                     {total > 0 && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
-                        {total.toFixed(2)}$
+                      <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                        sur {total.toFixed(2)}$ d'économies
                       </span>
                     )}
                   </div>
                 </div>
               </div>
             )}
+            
             {loadingDeals && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
+                <Sparkles className="w-4 h-4 inline-block mr-1 animate-pulse" />
                 Recherche de rabais en cours...
               </div>
             )}
@@ -534,8 +559,14 @@ export default function ListeEpicerie() {
               const deal = getBestDealForIngredient(ligne.nom);
               const hasDeal = deal.price !== null;
               const quantite = ligne.quantite || 1;
+              const prixUnitaireEstime = ligne.prixEstime || 0;
               const prixTotalRabais = hasDeal ? deal.price! * quantite : null;
               const prixTotalEstime = ligne.prixEstime ? ligne.prixEstime * quantite : null;
+              // Calculer l'économie basée sur le prix estimé et le meilleur prix trouvé (pas la somme de tous les deals)
+              const economieUnitaire = hasDeal && prixUnitaireEstime > 0 
+                ? Math.max(0, prixUnitaireEstime - deal.price!) 
+                : 0;
+              const economieTotale = economieUnitaire * quantite;
               
               const isExpanded = expandedItems.has(ligne.id);
               const allDeals = hasDeal ? getAllDealsForIngredient(ligne.nom) : [];
@@ -594,20 +625,32 @@ export default function ListeEpicerie() {
                         <span>
                           {ligne.quantite} {ligne.unite || "unité"}
                         </span>
-                        {hasDeal && prixTotalRabais !== null ? (
+                        {hasDeal && deal.price !== null ? (
                           <div className="flex items-center gap-2">
                             {deal.originalPrice && (
                               <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
-                                {(deal.originalPrice * quantite).toFixed(2)}$
+                                {quantite > 1 ? `${(deal.originalPrice * quantite).toFixed(2)}$` : `${deal.originalPrice.toFixed(2)}$`}
                               </span>
                             )}
-                            <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
-                              <DollarSign className="w-3 h-3" />
-                              {prixTotalRabais.toFixed(2)}$
-                            </span>
-                            {deal.savings && deal.savings > 0 && (
+                            <div className="flex flex-col items-end">
+                              <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
+                                <DollarSign className="w-3 h-3" />
+                                {deal.price.toFixed(2)}$
+                                {quantite > 1 && (
+                                  <span className="text-xs font-normal text-gray-500">
+                                    × {quantite} = {prixTotalRabais!.toFixed(2)}$
+                                  </span>
+                                )}
+                              </span>
+                              {deal.merchant && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                  {deal.merchant}
+                                </span>
+                              )}
+                            </div>
+                            {economieTotale > 0 && (
                               <span className="text-xs text-green-500 font-medium">
-                                (-{(deal.savings * quantite).toFixed(2)}$)
+                                (-{economieTotale.toFixed(2)}$)
                               </span>
                             )}
                           </div>
