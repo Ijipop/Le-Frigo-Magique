@@ -428,17 +428,17 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                               <div className="text-xs space-y-1">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-green-600 dark:text-green-400">
-                                    Coût: ${(recipe.detailedCost || recipesWithCost.get(recipe.url))?.totalCost.toFixed(2) || "0.00"}
+                                    Coût: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.totalCost ?? 0).toFixed(2)}
                                   </span>
-                                  {(recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry > 0 && (
+                                  {((recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry ?? 0) > 0 && (
                                     <span className="text-green-500 dark:text-green-400">
-                                      (Économie: ${(recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry.toFixed(2)})
+                                      (Économie: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry ?? 0).toFixed(2)})
                                     </span>
                                   )}
                                 </div>
-                                {(recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost && (
+                                {((recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost ?? 0) > 0 && (
                                   <span className="text-gray-500 dark:text-gray-400 line-through">
-                                    Prix original: ${(recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost.toFixed(2)}
+                                    Prix original: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost ?? 0).toFixed(2)}
                                   </span>
                                 )}
                               </div>
