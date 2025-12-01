@@ -51,6 +51,23 @@ export async function searchRecipesByBudget(
     throw new Error("SPOONACULAR_API_KEY n'est pas configurée");
   }
 
+  // 1. Créer une clé de cache basée sur les paramètres de recherche
+  const { createSearchCacheKey, getCachedSpoonacularSearch } = await import("./spoonacularCache");
+  const cacheKey = createSearchCacheKey(maxPrice, typeRepas, allergies, maxResults);
+  
+  // 2. Vérifier le cache dédié avant de faire l'appel API
+  try {
+    const cached = await getCachedSpoonacularSearch(cacheKey, maxResults);
+    
+    if (cached && cached.length > 0) {
+      console.log(`💾 [Spoonacular] ${cached.length} recette(s) récupérée(s) depuis le cache dédié (0 appel API)`);
+      return cached;
+    }
+  } catch (cacheError) {
+    console.warn("⚠️ [Spoonacular] Erreur lors de la vérification du cache:", cacheError);
+    // Continuer avec l'appel API si le cache échoue
+  }
+
   // Mapper les types de repas vers les paramètres Spoonacular
   const mealTypeMap: { [key: string]: string } = {
     "dejeuner": "breakfast",
@@ -82,11 +99,12 @@ export async function searchRecipesByBudget(
   
   // Construire les paramètres de recherche
   // addRecipeInformation=true permet d'obtenir les dishTypes directement dans la réponse
-  // STRATÉGIE OPTIMISÉE : Demander un nombre raisonnable (20-30) mais avec offset aléatoire
-  // pour avoir de la variété sans gaspiller les appels API
-  // On demande 3-4x plus que maxResults pour avoir de la marge après filtrage
-  const requestedCount = Math.max(maxResults * 4, 20); // 4x plus, minimum 20 (au lieu de 50-100)
-  const actualCount = Math.min(requestedCount, 30); // Maximum 30 pour économiser les appels API
+  // STRATÉGIE OPTIMISÉE : Demander PLUS de résultats que nécessaire pour le cache
+  // Cela permet de stocker plus de résultats dans le cache et de les mélanger à chaque fois
+  // pour avoir de la variété même avec le cache
+  // On demande 5-6x plus que maxResults pour avoir une bonne marge après filtrage
+  const requestedCount = Math.max(maxResults * 6, 30); // 6x plus, minimum 30 pour avoir de la variété dans le cache
+  const actualCount = Math.min(requestedCount, 50); // Maximum 50 pour économiser les appels API tout en ayant de la variété
   
   // Utiliser un offset aléatoire pour avoir de la variété (si Spoonacular le supporte)
   // Pour l'instant, on utilise sort: "random" qui donne déjà de la variété
@@ -201,6 +219,10 @@ export async function searchRecipesByBudget(
         // Ajouter "pumpkin" dans les contextes sucrés (mais pas les plats salés à la citrouille)
         'pumpkin pie', 'pumpkin pie', 'pumpkin cake', 'pumpkin dessert', 'pumpkin cookie',
         'pumpkin muffin', 'pumpkin bread', 'pumpkin spice', 'pumpkin cheesecake',
+        'pumpkin whipped cream', 'whipped cream', 'whipped', 'cream dessert',
+        'pumpkin whipped cream', 'whipped cream', 'whipped', 'cream dessert',
+        // Ajouter "bread" seul (pain simple, pas un plat principal)
+        'bread', 'simit', 'bagel', 'bagels', 'roll', 'rolls', 'bun', 'buns',
         // Ajouter d'autres patterns de desserts
         'bread pudding', 'bread pudding', 'french toast', 'french toast', 'cinnamon roll',
         'cinnamon rolls', 'sweet roll', 'sweet rolls', 'danish', 'danishes', 'croissant',
@@ -247,24 +269,69 @@ export async function searchRecipesByBudget(
         const detectedType = detectMealType(recipe.dishTypes);
         const matches = detectedType === targetType;
         
-        // Si le type correspond, vérifier quand même que ce n'est pas un dessert
+        // Si le type correspond, vérifier quand même que ce n'est pas un dessert ou un pain simple
         if (matches) {
           if (isDessertOrSweet(recipe)) {
             dessertsFiltered++;
             console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré malgré type ${targetType})`);
             return false;
           }
+          
+          // Pour les soupers, exclure aussi les pains simples même si le type correspond
+          if (targetType === 'souper') {
+            const titleLower = recipe.title.toLowerCase();
+            const breadKeywords = ['bread', 'simit', 'bagel', 'roll', 'bun', 'loaf', 'pain', 'baguette'];
+            if (breadKeywords.some(keyword => titleLower.includes(keyword) && !titleLower.includes('pudding'))) {
+              const isMainDishWithBread = titleLower.includes('chicken') || titleLower.includes('beef') || 
+                                         titleLower.includes('pork') || titleLower.includes('fish') ||
+                                         titleLower.includes('salmon') || titleLower.includes('turkey') ||
+                                         titleLower.includes('meat') || titleLower.includes('steak');
+              if (!isMainDishWithBread) {
+                dessertsFiltered++;
+                console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (pain simple malgré type ${targetType})`);
+                return false;
+              }
+            }
+          }
+          
           return true;
         }
         
         // Si pas de type détecté et qu'on cherche souper, on accepte (par défaut)
-        // MAIS seulement si ce n'est pas un dessert
+        // MAIS seulement si ce n'est pas un dessert, un pain simple, ou un snack
         if (!detectedType && targetType === 'souper') {
           if (isDessertOrSweet(recipe)) {
             dessertsFiltered++;
             console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré, type non détecté)`);
             return false;
           }
+          
+          // Vérifier aussi que ce n'est pas un pain simple
+          const titleLower = recipe.title.toLowerCase();
+          const dishTypesLower = (recipe.dishTypes || []).map(t => t.toLowerCase());
+          
+          // Exclure les pains simples (pas des plats principaux)
+          const breadKeywords = ['bread', 'simit', 'bagel', 'roll', 'bun', 'loaf', 'pain', 'baguette'];
+          if (breadKeywords.some(keyword => titleLower.includes(keyword) && !titleLower.includes('pudding'))) {
+            // Exclure sauf si c'est un plat avec du pain (ex: "chicken bread" serait OK)
+            const isMainDishWithBread = titleLower.includes('chicken') || titleLower.includes('beef') || 
+                                       titleLower.includes('pork') || titleLower.includes('fish') ||
+                                       titleLower.includes('salmon') || titleLower.includes('turkey') ||
+                                       titleLower.includes('meat') || titleLower.includes('steak');
+            if (!isMainDishWithBread) {
+              dessertsFiltered++;
+              console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (pain simple, type non détecté)`);
+              return false;
+            }
+          }
+          
+          // Exclure les snacks qui ne sont pas des plats principaux
+          if (dishTypesLower.includes('snack') && !dishTypesLower.includes('dinner') && !dishTypesLower.includes('main course')) {
+            dessertsFiltered++;
+            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (snack, type non détecté)`);
+            return false;
+          }
+          
           return true;
         }
         
@@ -292,13 +359,14 @@ export async function searchRecipesByBudget(
       [shuffledResults[i], shuffledResults[j]] = [shuffledResults[j], shuffledResults[i]];
     }
     
-    // Limiter aux maxResults demandés APRÈS le mélange aléatoire
-    const limitedResults = shuffledResults.slice(0, maxResults);
+    // IMPORTANT : Ne PAS limiter ici ! On va stocker TOUS les résultats filtrés dans le cache
+    // pour avoir de la variété à chaque fois qu'on récupère du cache
+    // On limitera seulement lors du retour (pour respecter maxResults) et lors de la récupération du cache
+    console.log(`🎲 [Spoonacular] ${filteredResults.length} recette(s) après filtrage, ${shuffledResults.length} à mettre en cache (mélange aléatoire)`);
     
-    console.log(`🎲 [Spoonacular] ${filteredResults.length} recette(s) après filtrage, ${limitedResults.length} retournée(s) (mélange aléatoire)`);
-    
-    // Transformer les résultats Spoonacular au format attendu par l'application
-    return limitedResults.map(recipe => {
+    // Transformer TOUS les résultats Spoonacular au format attendu par l'application
+    // (pas seulement maxResults, pour avoir de la variété dans le cache)
+    const transformedResults = shuffledResults.map(recipe => {
       // Conversion : pricePerServing de Spoonacular est en CENTIMES USD
       // Exemple : pricePerServing = 5 signifie 5 centimes USD = 0.05 USD
       // 1. Diviser par 100 pour convertir centimes -> dollars USD
@@ -328,6 +396,28 @@ export async function searchRecipesByBudget(
         spoonacularId: recipe.id, // Stocker l'ID pour récupérer le breakdown plus tard
       };
     });
+
+    // 3. Mettre en cache dédié pour les prochaines fois (cache permanent pour maximiser l'économie d'appels API)
+    try {
+      const { saveCachedSpoonacularSearch } = await import("./spoonacularCache");
+      await saveCachedSpoonacularSearch(
+        cacheKey,
+        maxPrice,
+        typeRepas,
+        allergies,
+        maxResults,
+        transformedResults
+      );
+      console.log(`💾 [Spoonacular] ${transformedResults.length} recette(s) mises en cache dédié (permanent)`);
+    } catch (cacheError) {
+      console.warn("⚠️ [Spoonacular] Erreur lors de la mise en cache:", cacheError);
+      // Ne pas faire échouer la fonction si le cache échoue
+    }
+
+    // Limiter aux maxResults demandés pour le retour (mais on a stocké TOUS les résultats dans le cache)
+    const limitedResults = transformedResults.slice(0, maxResults);
+    console.log(`📊 [Spoonacular] Retour de ${limitedResults.length} recette(s) sur ${transformedResults.length} en cache`);
+    return limitedResults;
 
   } catch (error) {
     console.error("❌ [Spoonacular] Erreur lors de la recherche:", error);
