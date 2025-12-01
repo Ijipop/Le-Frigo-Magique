@@ -92,7 +92,7 @@ export const GET = withRateLimit(
       console.log("🍴 [API] Recherche par budget uniquement - Utilisation de Spoonacular");
       
       try {
-        const budget = parseFloat(budgetParam);
+        let budget = parseFloat(budgetParam);
         if (isNaN(budget) || budget <= 0) {
           return NextResponse.json(
             { items: [], error: "Budget invalide" },
@@ -113,6 +113,27 @@ export const GET = withRateLimit(
 
         // Extraire typeRepas des filtres si présent
         const typeRepasFilter = filtersArray.find(f => ['dejeuner', 'diner', 'souper', 'collation'].includes(f));
+        
+        // 🎯 LOGIQUE DU BUDGET :
+        // - Si c'est une recherche unique (1 repas seulement, pas de nbJours ou nbJours = 1 et 1 seul type de repas)
+        //   → Utiliser un montant raisonnable (budget hebdomadaire / 21 repas = budget par repas moyen)
+        // - Si c'est une recherche complète (plusieurs repas, nbJours > 1 ou plusieurs types de repas)
+        //   → Le budget passé est déjà le budget par repas calculé (depuis QuickSettings)
+        const isSingleMealSearch = !nbJoursParam || (nbJoursParam && parseInt(nbJoursParam) === 1 && typeRepasFilter);
+        
+        if (isSingleMealSearch) {
+          // Recherche unique : calculer un budget raisonnable basé sur le budget hebdomadaire
+          // On assume que le budget hebdomadaire est pour 21 repas (7 déjeuners + 7 dîners + 7 soupers)
+          // Budget par repas moyen = budget hebdomadaire / 21
+          // Mais on peut être plus flexible pour une recherche unique (ex: jusqu'à 2x le budget moyen)
+          const budgetParRepasMoyen = budget / 21; // Budget hebdomadaire / 21 repas
+          const budgetRaisonnable = Math.max(budgetParRepasMoyen * 2, 5); // Au moins 5$ ou 2x le budget moyen
+          budget = Math.min(budgetRaisonnable, 20); // Maximum 20$ pour une recherche unique
+          console.log(`💰 [API] Recherche unique détectée - Budget ajusté: ${budget.toFixed(2)}$ (budget hebdomadaire: ${budgetParam}$, budget moyen par repas: ${budgetParRepasMoyen.toFixed(2)}$)`);
+        } else {
+          // Recherche complète : le budget passé est déjà le budget par repas calculé
+          console.log(`💰 [API] Recherche complète - Budget par repas: ${budget.toFixed(2)}$`);
+        }
         
         // Rechercher via Spoonacular avec limitation du nombre de résultats
         const spoonacularResults = await searchRecipesByBudget(

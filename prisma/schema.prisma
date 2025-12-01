@@ -149,6 +149,22 @@ model SpoonacularRecipeCache {
   @@index([spoonacularId])
 }
 
+model SpoonacularSearchCache {
+  id            Int      @id @default(autoincrement())
+  cacheKey      String   @unique // Clé unique basée sur les paramètres de recherche
+  maxPrice      Float    // Budget maximum (pour recherche par plage)
+  typeRepas     String?  // Type de repas (pour recherche partielle)
+  allergies     String   // Allergies sérialisées (pour recherche partielle)
+  maxResults    Int      // Nombre de résultats demandés
+  resultsJson   Json     // Résultats de la recherche (liste de recettes)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([maxPrice])
+  @@index([typeRepas])
+  @@index([cacheKey])
+}
+
 model RecetteSemaine {
   id            String      @id @default(cuid())
   utilisateurId String

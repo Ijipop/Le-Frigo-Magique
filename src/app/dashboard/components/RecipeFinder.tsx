@@ -45,11 +45,44 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
   const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set()); // URLs en cours d'ajout aux favoris
   const [calculatingCost, setCalculatingCost] = useState<Set<string>>(new Set()); // URLs en cours de calcul de coût
   const [recipesWithCost, setRecipesWithCost] = useState<Map<string, DetailedCost>>(new Map()); // Coûts détaillés calculés
+  const [budgetHebdomadaire, setBudgetHebdomadaire] = useState<number | null>(null);
+
+  // Charger le budget de l'utilisateur
+  const fetchBudget = async () => {
+    try {
+      const response = await fetch("/api/user/budget");
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data?.budgetHebdomadaire) {
+          setBudgetHebdomadaire(result.data.budgetHebdomadaire);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement du budget:", error);
+    }
+  };
+
+  // Fonction pour déterminer le badge de budget
+  const getBudgetBadge = (recipeCost: number | undefined): { color: string; label: string; icon: string } | null => {
+    if (!budgetHebdomadaire || !recipeCost || recipeCost <= 0) return null;
+    
+    // Budget moyen par repas (budget hebdomadaire / 21 repas)
+    const budgetMoyenParRepas = budgetHebdomadaire / 21;
+    
+    if (recipeCost <= budgetMoyenParRepas) {
+      return { color: "green", label: "Dans votre budget", icon: "✓" };
+    } else if (recipeCost <= budgetMoyenParRepas * 1.2) {
+      return { color: "orange", label: "Proche de la limite", icon: "⚠" };
+    } else {
+      return { color: "red", label: "Dépasse le budget", icon: "✗" };
+    }
+  };
 
   // Charger les recettes déjà ajoutées au montage
   useEffect(() => {
     loadExistingRecettes();
     loadExistingFavorites();
+    fetchBudget();
   }, []);
 
   // Fonction pour calculer le coût détaillé à la demande
@@ -412,11 +445,31 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                       
                       {/* Contenu */}
                       <div className="flex-1 min-w-0">
-                        <h4 
-                          className="font-semibold text-gray-900 dark:text-white mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors"
-                        >
-                          {recipe.title}
-                        </h4>
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h4 
+                            className="font-semibold text-gray-900 dark:text-white line-clamp-1 group-hover:text-orange-500 transition-colors flex-1"
+                          >
+                            {recipe.title}
+                          </h4>
+                          {/* Badge de budget */}
+                          {(() => {
+                            const cost = recipe.detailedCost?.totalCost ?? recipe.estimatedCost;
+                            const badge = getBudgetBadge(cost);
+                            if (!badge) return null;
+                            
+                            const colorClasses = {
+                              green: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800",
+                              orange: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800",
+                              red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+                            };
+                            
+                            return (
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded border ${colorClasses[badge.color as keyof typeof colorClasses]} flex-shrink-0 whitespace-nowrap`}>
+                                {badge.icon} {badge.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
                           {recipe.snippet}
                         </p>

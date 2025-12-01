@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, AlertTriangle, Heart, Settings, Calendar, UtensilsCrossed, Loader2, Check, Users, Star, ChevronDown, ChevronUp } from "lucide-react";
+import { DollarSign, AlertTriangle, Heart, Settings, Calendar, UtensilsCrossed, Loader2, Check, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
@@ -32,11 +32,15 @@ export default function QuickSettings() {
   
   // États pour la génération de recettes
   const [nbJours, setNbJours] = useState(7);
-  const [dejeuner, setDejeuner] = useState(false);
-  const [diner, setDiner] = useState(false);
-  const [souper, setSouper] = useState(false);
+  const [nbDejeuners, setNbDejeuners] = useState(0);
+  const [nbDiners, setNbDiners] = useState(0);
+  const [nbSoupers, setNbSoupers] = useState(0);
   const [respecterBudget, setRespecterBudget] = useState(true);
-  const [inspiration, setInspiration] = useState(false);
+  
+  // États dérivés pour compatibilité
+  const dejeuner = nbDejeuners > 0;
+  const diner = nbDiners > 0;
+  const souper = nbSoupers > 0;
   
   // États pour la modal de sélection
   const [selectionModalOpen, setSelectionModalOpen] = useState(false);
@@ -93,47 +97,45 @@ export default function QuickSettings() {
 
   const handleGenerateRecipes = async () => {
     // Vérifier qu'au moins un repas est sélectionné
-    if (!dejeuner && !diner && !souper) {
-      toast.error("Veuillez sélectionner au moins un type de repas");
+    if (nbDejeuners === 0 && nbDiners === 0 && nbSoupers === 0) {
+      toast.error("Veuillez sélectionner au moins un repas");
       return;
     }
 
     try {
       setGenerating(true);
       
-      // Calculer le nombre minimum de recettes nécessaires par type de repas
-      const repasTypes: string[] = [];
-      if (dejeuner) repasTypes.push("petit-dejeuner");
-      if (diner) repasTypes.push("diner");
-      if (souper) repasTypes.push("souper");
-      
-      // Limiter le nombre de recettes selon nbJours : nbJours + 1 (2 pour 1 jour, 3 pour 2 jours, etc.)
-      const targetRecettesParType = nbJours + 1; // Limitation stricte selon nbJours
-      const targetRecettesTotal = (nbJours + 1) * repasTypes.length;
-      const minRecettesTotal = nbJours * repasTypes.length; // Minimum demandé (nbJours par type)
-      
-      // Calculer le budget par repas
-      // Le budget hebdomadaire est pour 7 jours, donc on calcule le budget pour nbJours
-      // Puis on divise par le nombre total de repas
-      const nombreTotalRepas = nbJours * repasTypes.length;
+      // 🎯 NOUVELLE LOGIQUE : Calculer le budget avec les quantités spécifiques par type
+      const nombreTotalRepas = nbDejeuners + nbDiners + nbSoupers;
       const budgetPourNbJours = (budget / 7) * nbJours; // Budget pour nbJours (proportionnel)
       const budgetParRepas = respecterBudget && budget > 0 && nombreTotalRepas > 0 
         ? Math.round((budgetPourNbJours / nombreTotalRepas) * 100) / 100 // Arrondir à 2 décimales
         : null;
       
-      console.log(`🍳 Génération de ${targetRecettesTotal} recettes cibles (minimum ${minRecettesTotal} demandées, ${targetRecettesParType} par type)`);
-      console.log(`💰 Budget hebdomadaire: ${budget}$, Budget par repas: ${budgetParRepas}$ (${nombreTotalRepas} repas au total)`);
+      console.log(`🍳 Génération de recettes:`);
+      console.log(`   - ${nbDejeuners} déjeuner(s)`);
+      console.log(`   - ${nbDiners} dîner(s)`);
+      console.log(`   - ${nbSoupers} souper(s)`);
+      console.log(`   - Total: ${nombreTotalRepas} repas`);
+      console.log(`💰 Budget hebdomadaire: ${budget}$, Budget pour ${nbJours} jours: ${budgetPourNbJours.toFixed(2)}$, Budget par repas: ${budgetParRepas}$`);
       
       // Construire les filtres de base (sans les types de repas)
       const baseFilters: string[] = [];
       if (respecterBudget) baseFilters.push("economique");
-      if (inspiration) baseFilters.push("gourmet");
       
-      // Faire une recherche pour chaque type de repas
+      // Faire une recherche pour chaque type de repas avec la quantité spécifiée
       const allRecipes: any[] = [];
       const seenUrls = new Set<string>();
       
-      for (const typeRepas of repasTypes) {
+      // Fonction helper pour rechercher des recettes pour un type de repas
+      const searchRecipesForType = async (
+        typeRepas: string,
+        quantite: number,
+        typeRepasLabel: string
+      ): Promise<void> => {
+        if (quantite === 0) return;
+        
+        const maxResults = quantite + 1; // quantite + 1 pour avoir du choix
         const filtersForSearch = [typeRepas, ...baseFilters];
         
         const searchParams = new URLSearchParams({
@@ -141,20 +143,20 @@ export default function QuickSettings() {
           ...(budgetParRepas && budgetParRepas > 0 ? { budget: budgetParRepas.toString() } : {}),
           allergies: Array.from(selectedAllergies).join(","),
           filters: filtersForSearch.join(","),
-          nbJours: nbJours.toString(), // Passer le nombre de jours pour limiter les résultats
+          nbJours: quantite.toString(), // Utiliser la quantité comme nbJours
         });
         
-        console.log(`🔍 Recherche pour ${typeRepas}...`);
+        console.log(`🔍 Recherche pour ${quantite} ${typeRepasLabel}...`);
         const response = await fetch(`/api/web-recipes?${searchParams.toString()}`);
         
         if (response.ok) {
           const data = await response.json();
           const recipes = data.items || [];
           
-          // Prendre au moins targetRecettesParType recettes pour ce type (pour offrir de la variété)
+          // Prendre au moins maxResults recettes pour ce type (pour offrir de la variété)
           let addedForType = 0;
           for (const recipe of recipes) {
-            if (!seenUrls.has(recipe.url) && addedForType < targetRecettesParType) {
+            if (!seenUrls.has(recipe.url) && addedForType < maxResults) {
               seenUrls.add(recipe.url);
               allRecipes.push({
                 ...recipe,
@@ -164,36 +166,14 @@ export default function QuickSettings() {
             }
           }
           
-          console.log(`✅ ${addedForType} recettes trouvées pour ${typeRepas}`);
-          
-          // Si on n'a pas assez, faire une recherche supplémentaire sans filtre de type
-          if (addedForType < targetRecettesParType) {
-            const additionalSearchParams = new URLSearchParams({
-              ingredients: "",
-              ...(budgetParRepas && budgetParRepas > 0 ? { budget: budgetParRepas.toString() } : {}),
-              allergies: Array.from(selectedAllergies).join(","),
-              filters: baseFilters.join(","),
-            });
-            
-            const additionalResponse = await fetch(`/api/web-recipes?${additionalSearchParams.toString()}`);
-            if (additionalResponse.ok) {
-              const additionalData = await additionalResponse.json();
-              const additionalRecipes = additionalData.items || [];
-              
-              for (const recipe of additionalRecipes) {
-                if (!seenUrls.has(recipe.url) && addedForType < targetRecettesParType) {
-                  seenUrls.add(recipe.url);
-                  allRecipes.push({
-                    ...recipe,
-                    typeRepas: typeRepas === "petit-dejeuner" ? "dejeuner" : typeRepas,
-                  });
-                  addedForType++;
-                }
-              }
-            }
-          }
+          console.log(`✅ ${addedForType} recette(s) trouvée(s) pour ${quantite} ${typeRepasLabel}`);
         }
-      }
+      };
+      
+      // Rechercher pour chaque type de repas avec sa quantité spécifique
+      await searchRecipesForType("petit-dejeuner", nbDejeuners, "déjeuner(s)");
+      await searchRecipesForType("diner", nbDiners, "dîner(s)");
+      await searchRecipesForType("souper", nbSoupers, "souper(s)");
       
       // Filtrer les desserts (les utilisateurs veulent des repas, pas des desserts)
       const recipesWithoutDesserts = allRecipes.filter(recipe => {
@@ -210,12 +190,13 @@ export default function QuickSettings() {
       
       console.log(`🚫 ${allRecipes.length - recipesWithoutDesserts.length} dessert(s) filtré(s)`);
       
-      // Toujours montrer au moins targetRecettesTotal recettes pour offrir de la variété
-      // Mais ne pas dépasser ce qu'on a trouvé
-      const recipesToShow = recipesWithoutDesserts.slice(0, Math.max(targetRecettesTotal, recipesWithoutDesserts.length));
+      // Afficher toutes les recettes trouvées (on a déjà limité par type)
+      const recipesToShow = recipesWithoutDesserts;
       
-      if (recipesToShow.length < minRecettesTotal) {
-        toast.warning(`Seulement ${recipesToShow.length} recettes trouvées sur ${minRecettesTotal} demandées`);
+      if (recipesToShow.length < nombreTotalRepas) {
+        toast.warning(`Seulement ${recipesToShow.length} recettes trouvées sur ${nombreTotalRepas} demandées`);
+      } else {
+        toast.success(`${recipesToShow.length} recettes trouvées pour ${nombreTotalRepas} repas demandés`);
       }
       
       // Ouvrir la modal de sélection avec les recettes générées
@@ -390,40 +371,55 @@ export default function QuickSettings() {
             </select>
           </div>
 
-          {/* Types de repas */}
+          {/* Types de repas avec quantités */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <UtensilsCrossed className="w-4 h-4 inline mr-1" />
-              Types de repas
+              Types de repas (quantité)
             </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 flex-1">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Déjeuner</span>
+                </label>
                 <input
-                  type="checkbox"
-                  checked={dejeuner}
-                  onChange={(e) => setDejeuner(e.target.checked)}
-                  className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+                  type="number"
+                  min="0"
+                  max="21"
+                  value={nbDejeuners}
+                  onChange={(e) => setNbDejeuners(Math.max(0, Math.min(21, parseInt(e.target.value) || 0)))}
+                  className="w-20 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="0"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Déjeuner</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 flex-1">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Dîner</span>
+                </label>
                 <input
-                  type="checkbox"
-                  checked={diner}
-                  onChange={(e) => setDiner(e.target.checked)}
-                  className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+                  type="number"
+                  min="0"
+                  max="21"
+                  value={nbDiners}
+                  onChange={(e) => setNbDiners(Math.max(0, Math.min(21, parseInt(e.target.value) || 0)))}
+                  className="w-20 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="0"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Dîner</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 flex-1">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Souper</span>
+                </label>
                 <input
-                  type="checkbox"
-                  checked={souper}
-                  onChange={(e) => setSouper(e.target.checked)}
-                  className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
+                  type="number"
+                  min="0"
+                  max="21"
+                  value={nbSoupers}
+                  onChange={(e) => setNbSoupers(Math.max(0, Math.min(21, parseInt(e.target.value) || 0)))}
+                  className="w-20 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="0"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Souper</span>
-              </label>
+              </div>
             </div>
           </div>
 
@@ -443,23 +439,13 @@ export default function QuickSettings() {
                 <DollarSign className="w-4 h-4 text-orange-500" />
                 <span className="text-sm text-gray-700 dark:text-gray-300">Respecter Budget</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={inspiration}
-                  onChange={(e) => setInspiration(e.target.checked)}
-                  className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
-                />
-                <Star className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Inspiration</span>
-              </label>
             </div>
           </div>
 
           {/* Bouton générer */}
           <Button
             onClick={handleGenerateRecipes}
-            disabled={generating || (!dejeuner && !diner && !souper)}
+            disabled={generating || (nbDejeuners === 0 && nbDiners === 0 && nbSoupers === 0)}
             className="w-full !text-base !px-10 !py-2 hover:!scale-[1.01]"
             variant="primary"
             size="md"
@@ -472,33 +458,27 @@ export default function QuickSettings() {
             ) : (
               <>
                 <Calendar className="w-5 h-5 mr-2" />
-                Générer les recettes de la semaine
+                Générer les recettes
               </>
             )}
           </Button>
           
           {/* Info sur le nombre de recettes et coût estimé */}
-          {dejeuner || diner || souper ? (
+          {(nbDejeuners > 0 || nbDiners > 0 || nbSoupers > 0) ? (
             <div className="mt-2 space-y-1">
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 {(() => {
-                  const repasCount = [dejeuner, diner, souper].filter(Boolean).length;
-                  const minRecettes = nbJours * repasCount;
-                  if (minRecettes >= 10) {
-                    return `10 à 15 recettes seront générées (minimum ${minRecettes} demandées)`;
-                  } else {
-                    return `10 à 15 recettes seront générées`;
-                  }
+                  const nombreTotalRepas = nbDejeuners + nbDiners + nbSoupers;
+                  return `${nombreTotalRepas} repas demandé(s) : ${nbDejeuners} déjeuner(s), ${nbDiners} dîner(s), ${nbSoupers} souper(s)`;
                 })()}
               </p>
               {respecterBudget && budget > 0 && (() => {
-                const repasCount = [dejeuner, diner, souper].filter(Boolean).length;
-                const nombreTotalRepas = nbJours * repasCount;
+                const nombreTotalRepas = nbDejeuners + nbDiners + nbSoupers;
                 const budgetPourNbJours = (budget / 7) * nbJours;
                 const budgetParRepas = nombreTotalRepas > 0 ? budgetPourNbJours / nombreTotalRepas : 0;
                 return (
                   <p className="text-xs text-orange-600 dark:text-orange-400 text-center font-medium">
-                    💰 Budget pour {nombreTotalRepas} repas : ~{budgetPourNbJours.toFixed(2)}$ (~{budgetParRepas.toFixed(2)}$ par repas)
+                    💰 Budget pour {nbJours} jour(s) : ~{budgetPourNbJours.toFixed(2)}$ (~{budgetParRepas.toFixed(2)}$ par repas)
                   </p>
                 );
               })()}

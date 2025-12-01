@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users, Heart } from "lucide-react";
+import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users, Heart, DollarSign, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import Modal from "../../../components/ui/modal";
@@ -31,11 +31,28 @@ export default function RecettesSemaine() {
   const [deletingAll, setDeletingAll] = useState(false);
   const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set());
   const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set());
+  const [budgetHebdomadaire, setBudgetHebdomadaire] = useState<number | null>(null);
+
+  // Charger le budget de l'utilisateur
+  const fetchBudget = async () => {
+    try {
+      const response = await fetch("/api/user/budget");
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data?.budgetHebdomadaire) {
+          setBudgetHebdomadaire(result.data.budgetHebdomadaire);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement du budget:", error);
+    }
+  };
 
   // Charger les recettes au montage et écouter les mises à jour
   useEffect(() => {
     fetchRecettes();
     loadExistingFavorites();
+    fetchBudget();
     
     // Écouter les événements de mise à jour
     const handleUpdate = () => {
@@ -251,6 +268,113 @@ export default function RecettesSemaine() {
           )}
         </div>
       </motion.div>
+
+      {/* Widget de suivi du budget */}
+      {budgetHebdomadaire && budgetHebdomadaire > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4"
+        >
+          {(() => {
+            // Calculer le budget total utilisé
+            const budgetUtilise = recettes.reduce((total, recette) => {
+              const cost = recette.estimatedCost;
+              if (cost !== null && cost !== undefined && cost > 0) {
+                return total + cost;
+              }
+              return total;
+            }, 0);
+            
+            // Budget hebdomadaire proportionnel (pour 7 jours)
+            // On assume que les recettes sont pour la semaine complète
+            const budgetTotal = budgetHebdomadaire;
+            const budgetRestant = budgetTotal - budgetUtilise;
+            const pourcentageUtilise = budgetTotal > 0 ? (budgetUtilise / budgetTotal) * 100 : 0;
+            
+            // Déterminer la couleur selon le pourcentage
+            const getColor = () => {
+              if (pourcentageUtilise <= 80) return "green";
+              if (pourcentageUtilise <= 100) return "orange";
+              return "red";
+            };
+            
+            const color = getColor();
+            const colorClasses = {
+              green: "bg-green-500 dark:bg-green-600",
+              orange: "bg-orange-500 dark:bg-orange-600",
+              red: "bg-red-500 dark:bg-red-600",
+            };
+            
+            const textColorClasses = {
+              green: "text-green-700 dark:text-green-300",
+              orange: "text-orange-700 dark:text-orange-300",
+              red: "text-red-700 dark:text-red-300",
+            };
+            
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className={`w-5 h-5 ${textColorClasses[color]}`} />
+                    <h3 className={`text-sm font-semibold ${textColorClasses[color]}`}>
+                      Suivi du budget
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {budgetRestant >= 0 ? (
+                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    )}
+                    <span className={`text-sm font-bold ${textColorClasses[color]}`}>
+                      {budgetRestant >= 0 ? `${budgetRestant.toFixed(2)}$ restant` : `${Math.abs(budgetRestant).toFixed(2)}$ dépassé`}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Barre de progression */}
+                <div className="space-y-1">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(pourcentageUtilise, 100)}%` }}
+                      transition={{ duration: 0.5 }}
+                      className={`h-full ${colorClasses[color]}`}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>
+                      Utilisé: {budgetUtilise.toFixed(2)}$ / {budgetTotal.toFixed(2)}$
+                    </span>
+                    <span className="font-medium">
+                      {pourcentageUtilise.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Suggestions intelligentes */}
+                {budgetRestant < 0 && (
+                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-xs text-red-700 dark:text-red-300">
+                      ⚠️ Vous avez dépassé votre budget de {Math.abs(budgetRestant).toFixed(2)}$. 
+                      Considérez supprimer des recettes coûteuses ou chercher des alternatives moins chères.
+                    </p>
+                  </div>
+                )}
+                {budgetRestant >= 0 && budgetRestant < budgetTotal * 0.1 && (
+                  <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <p className="text-xs text-orange-700 dark:text-orange-300">
+                      💡 Il vous reste seulement {budgetRestant.toFixed(2)}$. 
+                      Cherchez des recettes économiques pour rester dans votre budget.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </motion.div>
+      )}
 
       <AnimatePresence>
         {recettes.length === 0 ? (
