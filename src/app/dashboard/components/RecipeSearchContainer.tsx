@@ -39,19 +39,20 @@ export default function RecipeSearchContainer() {
     const handleSearchByBudget = async (event: Event) => {
       const customEvent = event as CustomEvent<{ budget: number; typeRepas?: string; jourSemaine?: number }>;
       const { budget, typeRepas, jourSemaine } = customEvent.detail;
-      // Recherche par Budget : UNIQUEMENT le budget, typeRepas et jourSemaine si fournis, AUCUN filtre supplémentaire
+      // Recherche par Budget : UNIQUEMENT le budget, typeRepas et jourSemaine si fournis
+      // AUCUN filtre supplémentaire, MAIS on respecte TOUJOURS les allergies (sécurité/santé)
       const filters: string[] = [];
       if (typeRepas) filters.push(typeRepas);
       if (jourSemaine) filters.push(`jour-${jourSemaine}`);
       
-      // Charger les allergies de l'utilisateur
+      // Charger les allergies de l'utilisateur (TOUJOURS respectées)
       const allergies = await loadUserAllergies();
       
       handleSearch(
         'budget',
         [], // Pas d'ingrédients
         budget,
-        allergies, // Allergies de l'utilisateur
+        allergies, // Allergies TOUJOURS respectées
         filters // Seulement typeRepas et jourSemaine si fournis
       );
     };

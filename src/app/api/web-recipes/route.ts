@@ -673,6 +673,9 @@ export const GET = withRateLimit(
     console.log(`🚫 [API] ${allItems.length - filteredByDomain.length} recette(s) filtrée(s) (sites indésirables/listes), ${filteredByDomain.length} recette(s) conservée(s)`);
 
     // Filtrer les recettes contenant des allergènes
+    // IMPORTANT : Les allergies sont TOUJOURS respectées, même dans une recherche par budget uniquement
+    // (sécurité/santé de l'utilisateur)
+    const isBudgetOnlySearch = budgetParam && budgetParam !== "" && ingredientsArray.length === 0;
     let filteredItems = filteredByDomain;
     if (allergiesArray.length > 0) {
       // Mapper les IDs d'allergies aux termes de recherche
@@ -717,9 +720,10 @@ export const GET = withRateLimit(
     }
 
     // VALIDATION : Vérifier que les recettes correspondent bien aux filtres sélectionnés
+    // IMPORTANT : Si on recherche UNIQUEMENT par budget (pas d'ingrédients), on ignore les filtres sauf typeRepas/jourSemaine
     // IMPORTANT : Si on a des ingrédients, on est moins strict avec les filtres (car Google a déjà filtré)
     // Si on n'a pas d'ingrédients, on est plus strict pour s'assurer que les filtres sont respectés
-    if (filtersArray.length > 0) {
+    if (filtersArray.length > 0 && !isBudgetOnlySearch) {
       // Mapper les filtres vers des termes de validation (mots-clés à chercher dans titre/snippet)
       // Ces termes sont utilisés pour VALIDER que la recette correspond vraiment au filtre
       const filterValidationTerms: { [key: string]: string[] } = {
