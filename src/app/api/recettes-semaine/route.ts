@@ -5,7 +5,6 @@ import { getOrCreateUser } from "../../../../lib/utils/user";
 import { z } from "zod";
 import type { ApiResponse } from "../../../../lib/types/api";
 import { getRecipeInformation } from "../../../../lib/utils/spoonacular";
-import { translateIngredientToFrench } from "../../../../lib/utils/ingredientTranslator";
 import { normalizeIngredientName, matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 import { toGroceryItem, type SpoonacularIngredient } from "../../../../lib/ingredients/translateToFr";
 
