@@ -103,15 +103,6 @@ export default function InformationsLegales() {
       transition={{ duration: 0.4 }}
       className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
     >
-      <div className="flex items-center gap-2 mb-6">
-        <div className="p-2 bg-gradient-to-br from-orange-500 to-rose-500 rounded-lg">
-          <Scale className="w-5 h-5 text-white" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-          Informations légales
-        </h2>
-      </div>
-
       <div className="space-y-6">
         {/* Statut d'abonnement */}
         <section className="bg-gradient-to-br from-orange-50 to-rose-50 dark:from-gray-700 dark:to-gray-800 rounded-lg p-6 border border-orange-200 dark:border-orange-800">
@@ -370,6 +361,18 @@ export default function InformationsLegales() {
               >
                 ijipop82@gmail.com
               </a>
+            </div>
+          </div>
+          
+          {/* Titre Informations légales sous l'email */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-gradient-to-br from-orange-500 to-rose-500 rounded-lg">
+                <Scale className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Informations légales
+              </h3>
             </div>
           </div>
         </section>

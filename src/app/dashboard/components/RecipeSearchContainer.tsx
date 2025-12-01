@@ -11,6 +11,21 @@ interface Recipe {
   image: string | null;
   snippet: string;
   source: string;
+  estimatedCost?: number;
+  spoonacularId?: number;
+  detailedCost?: {
+    totalCost: number;
+    savingsFromPantry: number;
+    originalCost: number;
+    ingredients: Array<{
+      name: string;
+      amount: number;
+      unit: string;
+      price: number;
+      source: string;
+      inPantry: boolean;
+    }>;
+  };
 }
 
 export default function RecipeSearchContainer() {
@@ -125,6 +140,10 @@ export default function RecipeSearchContainer() {
         ...(typeRepasFilter && { typeRepas: typeRepasFilter }),
         ...(jourSemaine && { jourSemaine }),
       });
+      
+      // Si recherche par budget uniquement, on peut limiter les résultats
+      // Pour l'instant, on ne passe pas nbJours ici car il n'est pas disponible dans ce contexte
+      // La limitation sera gérée côté API avec une valeur par défaut
 
       const response = await fetch(`/api/web-recipes?${searchParams.toString()}`);
 

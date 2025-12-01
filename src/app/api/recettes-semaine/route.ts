@@ -4,6 +4,9 @@ import { prisma } from "../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../lib/utils/user";
 import { z } from "zod";
 import type { ApiResponse } from "../../../../lib/types/api";
+import { getRecipeInformation } from "../../../../lib/utils/spoonacular";
+import { translateIngredientToFrench } from "../../../../lib/utils/ingredientTranslator";
+import { normalizeIngredientName, matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 
 // Schéma simplifié pour éviter les problèmes de validation
 const createRecetteSchema = z.object({
@@ -14,6 +17,8 @@ const createRecetteSchema = z.object({
   source: z.any().optional().nullable(),
   estimatedCost: z.any().optional().nullable(),
   servings: z.any().optional().nullable(),
+  spoonacularId: z.number().optional().nullable(),
+  detailedCost: z.any().optional().nullable(),
 });
 
 // GET - Récupérer les recettes de la semaine
@@ -218,7 +223,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const recetteData = {
+    const recetteData: any = {
       utilisateurId: utilisateur.id,
       titre: validation.data.titre,
       url: validation.data.url,
@@ -228,6 +233,11 @@ export async function POST(req: Request) {
       estimatedCost,
       servings,
     };
+    
+    // Ajouter spoonacularId seulement s'il existe et est un nombre
+    if (body.spoonacularId && typeof body.spoonacularId === 'number') {
+      recetteData.spoonacularId = body.spoonacularId;
+    }
     
     console.log("💾 [API] Données à sauvegarder:", JSON.stringify(recetteData, null, 2));
     console.log("💾 [API] Types des données:", {
@@ -249,9 +259,35 @@ export async function POST(req: Request) {
     
       console.log("✅ [API] Recette créée avec succès:", recette.id);
 
+      // 🍴 NOUVEAU : Si c'est une recette Spoonacular, ajouter automatiquement les ingrédients à la liste d'épicerie
+      let ingredientsAdded = false;
+      console.log("🍴 [API] Vérification pour ajout automatique des ingrédients:", {
+        hasSpoonacularId: !!body.spoonacularId,
+        spoonacularId: body.spoonacularId,
+        hasDetailedCost: !!body.detailedCost,
+      });
+      
+      if (body.spoonacularId || body.detailedCost) {
+        try {
+          console.log("🍴 [API] Tentative d'ajout des ingrédients à la liste d'épicerie...");
+          const addedCount = await addSpoonacularIngredientsToListeEpicerie(
+            utilisateur.id,
+            body.spoonacularId,
+            body.detailedCost
+          );
+          ingredientsAdded = addedCount > 0;
+          console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
+        } catch (ingredientError) {
+          console.error("❌ [API] Erreur lors de l'ajout des ingrédients à la liste d'épicerie:", ingredientError);
+          // Ne pas faire échouer l'ajout de la recette si l'ajout des ingrédients échoue
+        }
+      } else {
+        console.log("ℹ️ [API] Pas de spoonacularId ni detailedCost, pas d'ajout automatique d'ingrédients");
+      }
+
       return NextResponse.json<ApiResponse>(
         {
-          data: recette,
+          data: { ...recette, ingredientsAdded },
           message: "Recette ajoutée à la semaine",
         },
         { status: 201 }
@@ -383,5 +419,148 @@ export async function DELETE(req: Request) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Ajoute automatiquement les ingrédients d'une recette Spoonacular à la liste d'épicerie
+ * (sauf ceux déjà dans le garde-manger)
+ * @returns Le nombre d'ingrédients ajoutés
+ */
+async function addSpoonacularIngredientsToListeEpicerie(
+  utilisateurId: string,
+  spoonacularId?: number | null,
+  detailedCost?: any
+): Promise<number> {
+  console.log("🍴 [API] Ajout automatique des ingrédients Spoonacular à la liste d'épicerie");
+  console.log("🍴 [API] Paramètres reçus:", {
+    utilisateurId,
+    spoonacularId,
+    hasDetailedCost: !!detailedCost,
+    detailedCostIngredientsCount: detailedCost?.ingredients?.length || 0,
+  });
+  
+  // Si on a déjà le detailedCost avec les ingrédients, l'utiliser directement
+  let ingredients: Array<{ name: string; amount: number; unit: string }> = [];
+  
+  if (detailedCost && detailedCost.ingredients && Array.isArray(detailedCost.ingredients)) {
+    console.log("✅ [API] Utilisation des ingrédients depuis detailedCost");
+    ingredients = detailedCost.ingredients.map((ing: any) => ({
+      name: ing.name,
+      amount: ing.amount || 1,
+      unit: ing.unit || "",
+    }));
+    console.log(`✅ [API] ${ingredients.length} ingrédient(s) extrait(s) depuis detailedCost`);
+  } else if (spoonacularId) {
+    console.log(`✅ [API] Récupération des ingrédients depuis Spoonacular API pour la recette ${spoonacularId}`);
+    try {
+      // Récupérer les ingrédients depuis Spoonacular
+      const recipeInfo = await getRecipeInformation(spoonacularId);
+      console.log(`✅ [API] Informations récupérées: ${recipeInfo.extendedIngredients?.length || 0} ingrédient(s)`);
+      ingredients = recipeInfo.extendedIngredients.map(ing => ({
+        name: ing.name,
+        amount: ing.amount || 1,
+        unit: ing.unit || ing.unitShort || "",
+      }));
+      console.log(`✅ [API] ${ingredients.length} ingrédient(s) mappé(s)`);
+    } catch (error) {
+      console.error("❌ [API] Erreur lors de la récupération des ingrédients depuis Spoonacular:", error);
+      return 0;
+    }
+  } else {
+    console.log("⚠️ [API] Aucun spoonacularId ni detailedCost fourni, impossible d'ajouter les ingrédients");
+    return 0;
+  }
+
+  if (ingredients.length === 0) {
+    console.log("⚠️ [API] Aucun ingrédient trouvé");
+    return 0;
+  }
+
+  console.log(`🍴 [API] ${ingredients.length} ingrédient(s) à traiter`);
+
+  // Récupérer le garde-manger de l'utilisateur
+  const gardeManger = await prisma.articleGardeManger.findMany({
+    where: { utilisateurId },
+  });
+
+  // Normaliser les noms du garde-manger pour la comparaison
+  const pantryItems = gardeManger.map(item => ({
+    ...item,
+    normalizedName: normalizeIngredientName(item.nom),
+  }));
+
+  // Récupérer ou créer la liste d'épicerie active
+  let liste = await prisma.listeEpicerie.findFirst({
+    where: { utilisateurId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!liste) {
+    liste = await prisma.listeEpicerie.create({
+      data: { utilisateurId },
+    });
+  }
+
+  // Traduire et filtrer les ingrédients (exclure ceux dans le garde-manger)
+  const ingredientsToAdd: Array<{ name: string; amount: number; unit: string }> = [];
+  
+  for (const ingredient of ingredients) {
+    // Traduire l'ingrédient anglais vers le français
+    const frenchName = translateIngredientToFrench(ingredient.name);
+    const normalizedIngredientName = normalizeIngredientName(frenchName);
+    
+    // Vérifier si l'ingrédient est dans le garde-manger
+    let inPantry = false;
+    for (const pantryItem of pantryItems) {
+      if (matchIngredients(normalizedIngredientName, pantryItem.normalizedName)) {
+        // Vérifier si on a assez dans le garde-manger
+        // Pour simplifier, on assume qu'on a assez si la quantité > 0
+        if (pantryItem.quantite > 0) {
+          inPantry = true;
+          console.log(`✅ [API] "${frenchName}" est dans le garde-manger, ignoré`);
+          break;
+        }
+      }
+    }
+    
+    if (!inPantry) {
+      ingredientsToAdd.push({
+        name: frenchName,
+        amount: ingredient.amount,
+        unit: ingredient.unit,
+      });
+    }
+  }
+
+  if (ingredientsToAdd.length === 0) {
+    console.log("✅ [API] Tous les ingrédients sont dans le garde-manger, rien à ajouter");
+    return 0;
+  }
+
+  console.log(`🍴 [API] Ajout de ${ingredientsToAdd.length} ingrédient(s) à la liste d'épicerie`);
+
+  // Ajouter les ingrédients à la liste d'épicerie
+  let addedCount = 0;
+  for (const ingredient of ingredientsToAdd) {
+    try {
+      await prisma.ligneListe.create({
+        data: {
+          listeId: liste.id,
+          nom: ingredient.name,
+          quantite: ingredient.amount,
+          unite: ingredient.unit || null,
+          prixEstime: null, // Le prix sera calculé plus tard si nécessaire
+        },
+      });
+      console.log(`✅ [API] "${ingredient.name}" ajouté à la liste d'épicerie`);
+      addedCount++;
+    } catch (error) {
+      console.warn(`⚠️ [API] Erreur lors de l'ajout de "${ingredient.name}":`, error);
+      // Continuer avec les autres ingrédients même si un échoue
+    }
+  }
+
+  console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
+  return addedCount;
 }
 

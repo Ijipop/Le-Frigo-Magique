@@ -6,6 +6,7 @@ import { prisma } from "../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../lib/utils/user";
 import { logger } from "../../../../lib/utils/logger";
 import { extractServingsFromText } from "../../../../lib/utils/servingsExtractor";
+import { searchRecipesByBudget } from "../../../../lib/utils/spoonacular";
 
 export const GET = withRateLimit(
   RateLimitConfigs.SEARCH, // 10 requêtes par minute
@@ -19,6 +20,7 @@ export const GET = withRateLimit(
     const filtersParam = searchParams.get("filters") || "";
     const typeRepasParam = searchParams.get("typeRepas") || "";
     const jourSemaineParam = searchParams.get("jourSemaine") || "";
+    const nbJoursParam = searchParams.get("nbJours") || "";
 
     // Récupérer le code postal et les préférences de recherche budget de l'utilisateur
     let postalCode: string | undefined;
@@ -82,6 +84,139 @@ export const GET = withRateLimit(
     console.log("🔑 [API] Ingrédients reçus:", ingredientsParam);
     console.log("🔑 [API] Ingrédients normalisés:", normalizedIngredients);
     console.log("🔑 [API] Filtres reçus:", filtersArray);
+
+    // 🍴 NOUVEAU : Si recherche par budget uniquement (pas d'ingrédients), utiliser Spoonacular
+    const isBudgetOnlySearch = budgetParam && budgetParam !== "" && ingredientsArray.length === 0;
+    
+    if (isBudgetOnlySearch) {
+      console.log("🍴 [API] Recherche par budget uniquement - Utilisation de Spoonacular");
+      
+      try {
+        const budget = parseFloat(budgetParam);
+        if (isNaN(budget) || budget <= 0) {
+          return NextResponse.json(
+            { items: [], error: "Budget invalide" },
+            { status: 400 }
+          );
+        }
+
+        // Calculer le nombre de recettes à retourner en fonction du nombre de jours
+        // Formule : nbJours + 1 (2 pour 1 jour, 3 pour 2 jours, 4 pour 3 jours, etc.)
+        let maxResults = 20; // Par défaut
+        if (nbJoursParam) {
+          const nbJours = parseInt(nbJoursParam);
+          if (!isNaN(nbJours) && nbJours > 0 && nbJours <= 7) {
+            maxResults = nbJours + 1; // 2 pour 1 jour, 3 pour 2 jours, etc.
+            console.log(`📅 [API] Limitation à ${maxResults} recette(s) pour ${nbJours} jour(s)`);
+          }
+        }
+
+        // Extraire typeRepas des filtres si présent
+        const typeRepasFilter = filtersArray.find(f => ['dejeuner', 'diner', 'souper', 'collation'].includes(f));
+        
+        // Rechercher via Spoonacular avec limitation du nombre de résultats
+        const spoonacularResults = await searchRecipesByBudget(
+          budget,
+          typeRepasFilter || typeRepas,
+          allergiesArray,
+          maxResults // Nombre de résultats limité selon nbJours
+        );
+
+        // Filtrer par allergies si nécessaire (Spoonacular gère déjà certaines allergies, mais on double-vérifie)
+        let finalResults = spoonacularResults;
+        if (allergiesArray.length > 0) {
+          // Spoonacular a déjà filtré, mais on peut faire un filtrage supplémentaire si nécessaire
+          // Pour l'instant, on fait confiance à Spoonacular
+          console.log(`✅ [Spoonacular] ${finalResults.length} recette(s) après filtrage Spoonacular`);
+        }
+
+        // Trier par coût croissant
+        finalResults.sort((a, b) => (a.estimatedCost || 0) - (b.estimatedCost || 0));
+
+        // Limiter selon nbJours (déjà fait dans searchRecipesByBudget, mais on double-vérifie)
+        // maxResults a déjà été calculé plus haut
+        const limitedResults = finalResults.slice(0, maxResults);
+
+        console.log(`✅ [Spoonacular] Retour de ${limitedResults.length} recette(s)`);
+
+        // 🍴 APPROCHE HYBRIDE : Calculer automatiquement le coût détaillé pour les 3-5 premières recettes
+        // Pour économiser les appels API pendant les tests
+        const AUTO_CALCULATE_COUNT = 3; // Calculer pour les 3 premières recettes
+        const resultsWithDetailedCost = await Promise.all(
+          limitedResults.map(async (recipe, index) => {
+            // Calculer automatiquement pour les premières recettes qui ont un spoonacularId
+            if (index < AUTO_CALCULATE_COUNT && recipe.spoonacularId && userId) {
+              try {
+                const utilisateur = await getOrCreateUser(userId);
+                if (utilisateur) {
+                  const preferences = await prisma.preferences.findUnique({
+                    where: { utilisateurId: utilisateur.id },
+                  });
+                  const postalCode = preferences?.codePostal || undefined;
+
+                  const { calculateSpoonacularRecipeCost } = await import("../../../../lib/utils/spoonacularRecipeCost");
+                  const detailedCost = await calculateSpoonacularRecipeCost(
+                    recipe.spoonacularId,
+                    utilisateur.id,
+                    postalCode
+                  );
+
+                  return {
+                    ...recipe,
+                    detailedCost: {
+                      totalCost: detailedCost.totalCost,
+                      savingsFromPantry: detailedCost.savingsFromPantry,
+                      originalCost: detailedCost.originalCost,
+                      ingredients: detailedCost.ingredients,
+                    },
+                  };
+                }
+              } catch (error) {
+                console.warn(`⚠️ [Spoonacular] Erreur lors du calcul du coût détaillé pour la recette ${recipe.spoonacularId}:`, error);
+                // En cas d'erreur, retourner la recette sans coût détaillé
+              }
+            }
+            return recipe;
+          })
+        );
+
+        console.log(`✅ [Spoonacular] ${AUTO_CALCULATE_COUNT} recette(s) avec coût détaillé calculé automatiquement`);
+
+        return NextResponse.json({
+          items: resultsWithDetailedCost,
+          cached: false,
+          source: "spoonacular",
+        });
+
+      } catch (error) {
+        logger.error("Erreur lors de la recherche Spoonacular", error instanceof Error ? error : new Error(String(error)), {
+          budget: budgetParam,
+          typeRepas,
+          allergies: allergiesArray,
+        });
+        
+        // En cas d'erreur Spoonacular, retourner un tableau vide plutôt que de planter
+        return NextResponse.json(
+          { items: [], error: "Erreur lors de la recherche Spoonacular", details: error instanceof Error ? error.message : String(error) },
+          { status: 500 }
+        );
+      }
+    }
+
+    // 🚫 IMPORTANT : Si recherche par budget uniquement, NE PAS continuer avec Google Search
+    // On a déjà retourné les résultats Spoonacular ci-dessus
+    // Cette vérification empêche tout appel à Google Search pour les recherches par budget
+    if (isBudgetOnlySearch) {
+      console.log("⚠️ [API] Recherche par budget uniquement - Google Search ignoré (Spoonacular uniquement)");
+      // Ce code ne devrait jamais être atteint car on a déjà retourné ci-dessus,
+      // mais on le garde comme sécurité supplémentaire
+      return NextResponse.json({
+        items: [],
+        cached: false,
+        source: "spoonacular",
+        error: "Recherche par budget uniquement - Spoonacular uniquement",
+      });
+    }
 
     // 1️⃣ — Vérifier le cache (conservation infinie avec enrichissement progressif)
     // STRATÉGIE OPTIMISÉE :
@@ -369,25 +504,34 @@ export const GET = withRateLimit(
       query += ' -"10 recettes" -"20 recettes" -"5 recettes" -"liste de" -"top 10" -"meilleures recettes" -"compilation" -"galerie" -"repas à rabais" -"repas à prix réduit" -"recettes à petits prix" -"astuces" -"astuce" -"conseils" -"conseil" -"trucs" -"truc" -"façons" -"manières" -"projet" -"expérience" -"expérience culinaire" -"commerce" -"fait maison" -"lequel" -"comparaison" -"cuisine de groupe" -"restes" -"recettes du québec" -"comment faire" -"comment préparer" -"guide" -"tutoriel" -"sélection" -"collection"';
     }
     
-    // Ajouter budget si nécessaire
-    if (budgetParam) {
-      query += ' "économique" "pas cher"';
+    // 🚫 IMPORTANT : Ne pas utiliser Google Search si recherche par budget uniquement
+    // (Spoonacular est déjà utilisé pour les recherches par budget uniquement)
+    if (isBudgetOnlySearch) {
+      console.log("⚠️ [API] Recherche par budget uniquement - Google Search ignoré");
+      // Ne pas faire de recherche Google si on cherche uniquement par budget
+      // Les résultats Spoonacular ont déjà été retournés plus haut
+    } else {
+      // Ajouter budget si nécessaire (mais seulement si on a aussi des ingrédients)
+      if (budgetParam && ingredientsArray.length > 0) {
+        query += ' "économique" "pas cher"';
+      }
+      
+      // Rechercher 30 recettes pour avoir plus de choix (augmenté pour les recherches avec budget)
+      const maxResults = budgetParam ? 30 : 20;
+      console.log("🔎 [API] Recherche ciblée pour recettes individuelles:", query);
+      const results = await performGoogleSearch(query, maxResults);
+      results.forEach((item: any) => {
+        if (!seenUrls.has(item.url)) {
+          allItems.push(item);
+          seenUrls.add(item.url);
+        }
+      });
+      console.log(`✅ [API] ${results.length} recette(s) trouvée(s), ${allItems.length} unique(s)`);
     }
     
-    // Rechercher 30 recettes pour avoir plus de choix (augmenté pour les recherches avec budget)
-    const maxResults = budgetParam ? 30 : 20;
-    console.log("🔎 [API] Recherche ciblée pour recettes individuelles:", query);
-    const results = await performGoogleSearch(query, maxResults);
-    results.forEach((item: any) => {
-      if (!seenUrls.has(item.url)) {
-        allItems.push(item);
-        seenUrls.add(item.url);
-      }
-    });
-    console.log(`✅ [API] ${results.length} recette(s) trouvée(s), ${allItems.length} unique(s)`);
-    
     // Si on cherche uniquement avec des filtres (sans ingrédients), faire des recherches supplémentaires avec variantes
-    if (ingredientsArray.length === 0 && filterQueryTerms) {
+    // 🚫 IMPORTANT : Ne pas faire de recherches supplémentaires si recherche par budget uniquement
+    if (ingredientsArray.length === 0 && filterQueryTerms && !isBudgetOnlySearch) {
       // Faire des recherches supplémentaires avec différentes variantes pour maximiser les résultats
       // Si on a un budget, faire plus de variantes pour avoir plus de résultats
       const baseVariants = [
@@ -424,7 +568,8 @@ export const GET = withRateLimit(
     
     // Si on cherche avec des ingrédients, faire des recherches supplémentaires avec variantes pour avoir plus de résultats
     // IMPORTANT : Toujours faire des recherches supplémentaires avec ingrédients pour maximiser les résultats
-    if (ingredientsArray.length > 0) {
+    // 🚫 IMPORTANT : Ne pas faire de recherches supplémentaires si recherche par budget uniquement
+    if (ingredientsArray.length > 0 && !isBudgetOnlySearch) {
       const nombreIngredients = Math.min(ingredientsArray.length, 3);
       const ingredientsPrincipaux = ingredientsArray.slice(0, nombreIngredients);
       
@@ -467,14 +612,17 @@ export const GET = withRateLimit(
         }
         
         const variantQuery = variantQueries[i];
-        const variantResults = await performGoogleSearch(variantQuery, 10);
-        variantResults.forEach((item: any) => {
-          if (!seenUrls.has(item.url)) {
-            allItems.push(item);
-            seenUrls.add(item.url);
-          }
-        });
-        console.log(`✅ [API] Variante avec ingrédients "${variantQuery}": ${variantResults.length} recette(s) trouvée(s), ${allItems.length} unique(s) au total`);
+        // 🚫 IMPORTANT : Ne pas utiliser Google Search si recherche par budget uniquement
+        if (!isBudgetOnlySearch) {
+          const variantResults = await performGoogleSearch(variantQuery, 10);
+          variantResults.forEach((item: any) => {
+            if (!seenUrls.has(item.url)) {
+              allItems.push(item);
+              seenUrls.add(item.url);
+            }
+          });
+          console.log(`✅ [API] Variante avec ingrédients "${variantQuery}": ${variantResults.length} recette(s) trouvée(s), ${allItems.length} unique(s) au total`);
+        }
       }
     }
 
@@ -675,7 +823,6 @@ export const GET = withRateLimit(
     // Filtrer les recettes contenant des allergènes
     // IMPORTANT : Les allergies sont TOUJOURS respectées, même dans une recherche par budget uniquement
     // (sécurité/santé de l'utilisateur)
-    const isBudgetOnlySearch = budgetParam && budgetParam !== "" && ingredientsArray.length === 0;
     let filteredItems = filteredByDomain;
     if (allergiesArray.length > 0) {
       // Mapper les IDs d'allergies aux termes de recherche
@@ -717,6 +864,45 @@ export const GET = withRateLimit(
       });
 
       console.log(`✅ [API] ${filteredItems.length} recette(s) après filtrage des allergies (${filteredByDomain.length - filteredItems.length} exclue(s))`);
+    }
+
+    // EXCLUSION AUTOMATIQUE : Exclure les desserts pour les recherches "souper"
+    const isSouperSearch = typeRepas === 'souper' || filtersArray.includes('souper');
+    if (isSouperSearch) {
+      const dessertKeywords = [
+        'dessert', 'muffin', 'muffins', 'gâteau', 'gateau', 'cake', 'cakes',
+        'tarte', 'tart', 'tartes', 'tarts', 'brownie', 'brownies', 'cookie', 'cookies',
+        'biscuit', 'biscuits', 'pudding', 'puddings', 'crème', 'creme', 'mousse',
+        'sorbet', 'sorbets', 'glace', 'ice cream', 'icecream', 'sundae', 'sundaes',
+        'pie', 'pies', 'cupcake', 'cupcakes', 'donut', 'donuts', 'doughnut', 'doughnuts',
+        'waffle', 'waffles', 'pancake', 'pancakes', 'crepe', 'crepes', 'fudge',
+        'candy', 'bonbon', 'bonbons', 'chocolate bar', 'chocolate cake', 'chocolate chip',
+        'tiramisu', 'cheesecake', 'cheesecakes', 'flan', 'flan', 'custard', 'custards',
+        'soufflé', 'souffle', 'soufflés', 'meringue', 'meringues', 'macaron', 'macarons',
+        'eclair', 'eclairs', 'profiterole', 'profiteroles', 'cannoli', 'cannolis',
+        'baklava', 'baklavas', 'truffle', 'truffles', 'fudge', 'fudges',
+        'banana bread', 'chocolate bread', 'sweet bread', 'cinnamon bread', 'zucchini bread',
+        'pumpkin bread', 'lemon bread', 'orange bread', 'glaze', 'glazed', 'frosting', 'icing'
+      ];
+      
+      const beforeDessertFilter = filteredItems.length;
+      filteredItems = filteredItems.filter(item => {
+        const titleLower = (item.title || '').toLowerCase();
+        const snippetLower = (item.snippet || '').toLowerCase();
+        const textToCheck = `${titleLower} ${snippetLower}`;
+        
+        const isDessert = dessertKeywords.some(keyword => textToCheck.includes(keyword));
+        if (isDessert) {
+          console.log(`🚫 [API] Recette "${item.title}" exclue (dessert détecté pour recherche souper)`);
+          return false;
+        }
+        return true;
+      });
+      
+      const dessertsFiltered = beforeDessertFilter - filteredItems.length;
+      if (dessertsFiltered > 0) {
+        console.log(`🚫 [API] ${dessertsFiltered} dessert(s) filtré(s) pour recherche souper`);
+      }
     }
 
     // VALIDATION : Vérifier que les recettes correspondent bien aux filtres sélectionnés

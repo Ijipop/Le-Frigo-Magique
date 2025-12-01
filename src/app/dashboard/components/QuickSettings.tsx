@@ -107,11 +107,10 @@ export default function QuickSettings() {
       if (diner) repasTypes.push("diner");
       if (souper) repasTypes.push("souper");
       
-      const minRecettesParType = nbJours;
-      const minRecettesTotal = nbJours * repasTypes.length;
-      // Toujours générer au moins 15-20 recettes pour offrir de la variété, même si l'utilisateur en demande moins
-      const targetRecettesParType = Math.max(minRecettesParType * 2, 15); // Au moins 15 par type pour avoir du choix
-      const targetRecettesTotal = Math.max(minRecettesTotal * 2, 20); // Au moins 20 au total pour avoir du choix
+      // Limiter le nombre de recettes selon nbJours : nbJours + 1 (2 pour 1 jour, 3 pour 2 jours, etc.)
+      const targetRecettesParType = nbJours + 1; // Limitation stricte selon nbJours
+      const targetRecettesTotal = (nbJours + 1) * repasTypes.length;
+      const minRecettesTotal = nbJours * repasTypes.length; // Minimum demandé (nbJours par type)
       
       // Calculer le budget par repas
       // Le budget hebdomadaire est pour 7 jours, donc on calcule le budget pour nbJours
@@ -142,6 +141,7 @@ export default function QuickSettings() {
           ...(budgetParRepas && budgetParRepas > 0 ? { budget: budgetParRepas.toString() } : {}),
           allergies: Array.from(selectedAllergies).join(","),
           filters: filtersForSearch.join(","),
+          nbJours: nbJours.toString(), // Passer le nombre de jours pour limiter les résultats
         });
         
         console.log(`🔍 Recherche pour ${typeRepas}...`);
@@ -524,6 +524,7 @@ export default function QuickSettings() {
           let savedCount = 0;
           let errorCount = 0;
           let totalCost = 0;
+          let totalIngredientsAdded = 0;
 
           for (const recipe of recipesToSave) {
             try {
@@ -549,7 +550,7 @@ export default function QuickSettings() {
                 totalCost += finalCost;
               }
 
-              const payload = {
+              const payload: any = {
                 titre: recipe.title,
                 url: recipe.url,
                 image: recipe.image || null,
@@ -559,6 +560,24 @@ export default function QuickSettings() {
                 servings: finalServings !== null && finalServings !== undefined ? finalServings : null,
               };
               
+              // Ajouter spoonacularId et detailedCost si disponibles (pour ajout automatique des ingrédients)
+              if (recipe.spoonacularId) {
+                payload.spoonacularId = recipe.spoonacularId;
+                console.log("📤 [QuickSettings] spoonacularId trouvé:", recipe.spoonacularId);
+              }
+              
+              if (recipe.detailedCost) {
+                payload.detailedCost = recipe.detailedCost;
+                console.log("📤 [QuickSettings] detailedCost trouvé avec", recipe.detailedCost.ingredients?.length || 0, "ingrédients");
+              }
+              
+              console.log("📤 [QuickSettings] Envoi de la recette:", {
+                titre: payload.titre,
+                spoonacularId: payload.spoonacularId,
+                hasDetailedCost: !!payload.detailedCost,
+                source: payload.source,
+              });
+              
               const response = await fetch("/api/recettes-semaine", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -566,6 +585,14 @@ export default function QuickSettings() {
               });
               
               if (response.ok) {
+                const result = await response.json();
+                const hasIngredients = result.data?.ingredientsAdded || false;
+                if (hasIngredients) {
+                  totalIngredientsAdded++;
+                  console.log("✅ [QuickSettings] Ingrédients ajoutés à la liste d'épicerie");
+                  // Déclencher le rafraîchissement de la liste d'épicerie
+                  window.dispatchEvent(new CustomEvent("liste-epicerie-updated"));
+                }
                 savedCount++;
               } else {
                 if (response.status === 409) {
@@ -588,9 +615,13 @@ export default function QuickSettings() {
               ? ` Coût approximatif total : ${totalCost.toFixed(2)}$`
               : "";
             
+            const ingredientsMessage = totalIngredientsAdded > 0
+              ? ` Les ingrédients de ${totalIngredientsAdded} recette${totalIngredientsAdded > 1 ? "s" : ""} ont été ajoutés à votre liste d'épicerie.`
+              : "";
+            
             toast.success(
-              `${savedCount} recette${savedCount > 1 ? "s" : ""} ajoutée${savedCount > 1 ? "s" : ""} à la semaine !${costMessage}`,
-              { duration: 5000 }
+              `${savedCount} recette${savedCount > 1 ? "s" : ""} ajoutée${savedCount > 1 ? "s" : ""} à la semaine !${costMessage}${ingredientsMessage}`,
+              { duration: 6000 }
             );
           } else if (errorCount > 0) {
             toast.warning("Les recettes existent déjà dans votre semaine");

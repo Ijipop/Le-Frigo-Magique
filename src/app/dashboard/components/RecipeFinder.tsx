@@ -6,12 +6,30 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 
+interface DetailedCost {
+  totalCost: number;
+  savingsFromPantry: number;
+  originalCost: number;
+  ingredients: Array<{
+    name: string;
+    amount: number;
+    unit: string;
+    price: number;
+    source: string;
+    inPantry: boolean;
+  }>;
+}
+
 interface Recipe {
   title: string;
   url: string;
   image: string | null;
   snippet: string;
   source: string;
+  estimatedCost?: number;
+  spoonacularId?: number;
+  detailedCost?: DetailedCost;
+  servings?: number;
 }
 
 interface RecipeFinderProps {
@@ -25,12 +43,53 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
   const [addingToWeek, setAddingToWeek] = useState<Set<string>>(new Set()); // URLs en cours d'ajout
   const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set()); // URLs des recettes favorites
   const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set()); // URLs en cours d'ajout aux favoris
+  const [calculatingCost, setCalculatingCost] = useState<Set<string>>(new Set()); // URLs en cours de calcul de coût
+  const [recipesWithCost, setRecipesWithCost] = useState<Map<string, DetailedCost>>(new Map()); // Coûts détaillés calculés
 
   // Charger les recettes déjà ajoutées au montage
   useEffect(() => {
     loadExistingRecettes();
     loadExistingFavorites();
   }, []);
+
+  // Fonction pour calculer le coût détaillé à la demande
+  const calculateDetailedCost = async (recipe: Recipe) => {
+    if (!recipe.spoonacularId || calculatingCost.has(recipe.url)) {
+      return;
+    }
+
+    try {
+      setCalculatingCost(prev => new Set(prev).add(recipe.url));
+      
+      const response = await fetch("/api/recipes/spoonacular-cost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipeId: recipe.spoonacularId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data) {
+          setRecipesWithCost(prev => {
+            const newMap = new Map(prev);
+            newMap.set(recipe.url, data.data);
+            return newMap;
+          });
+        }
+      } else {
+        toast.error("Erreur lors du calcul du coût détaillé");
+      }
+    } catch (error) {
+      console.error("Erreur lors du calcul du coût:", error);
+      toast.error("Une erreur est survenue");
+    } finally {
+      setCalculatingCost(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recipe.url);
+        return newSet;
+      });
+    }
+  };
 
   // Charger les recettes déjà ajoutées pour marquer celles qui sont déjà sélectionnées
   const loadExistingRecettes = async () => {
@@ -75,29 +134,82 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
     try {
       setAddingToWeek(new Set([...addingToWeek, recipe.url]));
 
+      // Préparer les données à envoyer
+      const detailedCostData = recipe.detailedCost || recipesWithCost.get(recipe.url) || null;
+      
+      const payload: any = {
+        titre: recipe.title,
+        url: recipe.url,
+        image: recipe.image,
+        snippet: recipe.snippet,
+        source: recipe.source,
+        estimatedCost: recipe.estimatedCost,
+        servings: recipe.servings,
+      };
+      
+      // Ajouter spoonacularId et detailedCost si disponibles (pour ajout automatique des ingrédients)
+      if (recipe.spoonacularId) {
+        payload.spoonacularId = recipe.spoonacularId;
+        console.log("📤 [Frontend] spoonacularId trouvé:", recipe.spoonacularId);
+      } else {
+        console.log("⚠️ [Frontend] Pas de spoonacularId pour cette recette");
+      }
+      
+      if (detailedCostData) {
+        payload.detailedCost = detailedCostData;
+        console.log("📤 [Frontend] detailedCost trouvé avec", detailedCostData.ingredients?.length || 0, "ingrédients");
+      } else {
+        console.log("⚠️ [Frontend] Pas de detailedCost pour cette recette");
+      }
+      
+      console.log("📤 [Frontend] Envoi de la recette:", {
+        titre: payload.titre,
+        spoonacularId: payload.spoonacularId,
+        hasDetailedCost: !!payload.detailedCost,
+        source: payload.source,
+      });
+
       const response = await fetch("/api/recettes-semaine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          titre: recipe.title,
-          url: recipe.url,
-          image: recipe.image,
-          snippet: recipe.snippet,
-          source: recipe.source,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        toast.success(`"${recipe.title}" ajoutée aux recettes de la semaine !`);
+        const result = await response.json();
+        console.log("✅ [Frontend] Réponse de l'API:", result);
+        const hasIngredients = result.data?.ingredientsAdded || false;
+        
+        if (hasIngredients) {
+          toast.success(`"${recipe.title}" ajoutée aux recettes de la semaine ! Les ingrédients ont été ajoutés à votre liste d'épicerie.`);
+        } else {
+          toast.success(`"${recipe.title}" ajoutée aux recettes de la semaine !`);
+        }
+        
         setSelectedRecipes(new Set([...selectedRecipes, recipe.url]));
-        // Déclencher un événement pour rafraîchir le composant RecettesSemaine
+        // Déclencher des événements pour rafraîchir les composants
         window.dispatchEvent(new CustomEvent("recettes-semaine-updated"));
+        if (hasIngredients) {
+          window.dispatchEvent(new CustomEvent("liste-epicerie-updated"));
+        }
       } else {
-        const error = await response.json();
+        const errorText = await response.text();
+        let error: any;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText || "Erreur inconnue" };
+        }
+        
+        console.error("❌ [Frontend] Erreur lors de l'ajout:", {
+          status: response.status,
+          error: error,
+        });
+        
         if (response.status === 409) {
           toast.info("Cette recette est déjà dans vos recettes de la semaine");
         } else {
-          toast.error(error.error || "Erreur lors de l'ajout");
+          toast.error(error.error || `Erreur lors de l'ajout (${response.status})`);
         }
       }
     } catch (error) {
@@ -308,6 +420,57 @@ export default function RecipeFinder({ recipes, loading }: RecipeFinderProps) {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
                           {recipe.snippet}
                         </p>
+                        
+                        {/* Coût détaillé (Spoonacular) */}
+                        {recipe.source === "spoonacular.com" && (
+                          <div className="mb-2">
+                            {recipe.detailedCost || recipesWithCost.get(recipe.url) ? (
+                              <div className="text-xs space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-green-600 dark:text-green-400">
+                                    Coût: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.totalCost ?? 0).toFixed(2)}
+                                  </span>
+                                  {((recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry ?? 0) > 0 && (
+                                    <span className="text-green-500 dark:text-green-400">
+                                      (Économie: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.savingsFromPantry ?? 0).toFixed(2)})
+                                    </span>
+                                  )}
+                                </div>
+                                {((recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost ?? 0) > 0 && (
+                                  <span className="text-gray-500 dark:text-gray-400 line-through">
+                                    Prix original: ${((recipe.detailedCost || recipesWithCost.get(recipe.url))?.originalCost ?? 0).toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  calculateDetailedCost(recipe);
+                                }}
+                                disabled={calculatingCost.has(recipe.url)}
+                                className="text-xs text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 flex items-center gap-1"
+                              >
+                                {calculatingCost.has(recipe.url) ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Calcul...
+                                  </>
+                                ) : (
+                                  "Calculer le coût détaillé"
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Coût estimé (si pas de coût détaillé) */}
+                        {recipe.estimatedCost && recipe.estimatedCost > 0 && !recipe.detailedCost && !recipesWithCost.get(recipe.url) && (
+                          <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+                            Coût estimé: ${recipe.estimatedCost.toFixed(2)}
+                          </div>
+                        )}
+                        
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {recipe.source}

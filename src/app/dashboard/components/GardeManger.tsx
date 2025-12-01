@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, ShoppingCart, Search, ChevronDown, ChevronUp, Grid3x3, List, SortAsc, SortDesc } from "lucide-react";
+import { Plus, Trash2, ShoppingCart, Search, ChevronDown, ChevronUp, Grid3x3, List, SortAsc, SortDesc, Trash } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
@@ -26,6 +26,7 @@ export default function GardeManger() {
     articleId: null,
     articleNom: "",
   });
+  const [deleteAllModal, setDeleteAllModal] = useState(false);
   
   // États pour la gestion de grandes listes
   const [searchTerm, setSearchTerm] = useState("");
@@ -145,6 +146,27 @@ export default function GardeManger() {
     }
   };
 
+  const handleDeleteAllConfirm = async () => {
+    try {
+      const response = await fetch("/api/garde-manger", {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Garde-manger vidé");
+        fetchArticles();
+        setDeleteAllModal(false);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Erreur lors de la suppression");
+      }
+    } catch (error) {
+      console.error("Erreur:", error);
+      toast.error("Une erreur est survenue");
+    }
+  };
+
   // Filtrer et trier les articles
   const filteredAndSortedArticles = useMemo(() => {
     let filtered = articles;
@@ -235,16 +257,30 @@ export default function GardeManger() {
             )}
           </div>
         </div>
-        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            size="sm"
-            variant={showForm ? "secondary" : "primary"}
-          >
-            <Plus className="w-4 h-4 mr-1 inline" />
-            {showForm ? "Annuler" : "Ajouter"}
-          </Button>
-        </motion.div>
+        <div className="flex items-center gap-2">
+          {totalCount > 0 && (
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
+                onClick={() => setDeleteAllModal(true)}
+                size="sm"
+                variant="danger"
+              >
+                <Trash className="w-4 h-4 mr-1 inline" />
+                Tout supprimer
+              </Button>
+            </motion.div>
+          )}
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={() => setShowForm(!showForm)}
+              size="sm"
+              variant={showForm ? "secondary" : "primary"}
+            >
+              <Plus className="w-4 h-4 mr-1 inline" />
+              {showForm ? "Annuler" : "Ajouter"}
+            </Button>
+          </motion.div>
+        </div>
       </motion.div>
 
       <AnimatePresence>
@@ -554,6 +590,25 @@ export default function GardeManger() {
         <p className="text-gray-600 dark:text-gray-300">
           Êtes-vous sûr de vouloir supprimer <strong>{deleteModal.articleNom}</strong> ?
           Cette action est irréversible.
+        </p>
+      </Modal>
+
+      {/* Modal de confirmation de suppression de tout le garde-manger */}
+      <Modal
+        isOpen={deleteAllModal}
+        onClose={() => setDeleteAllModal(false)}
+        title="Tout supprimer"
+        onConfirm={handleDeleteAllConfirm}
+        variant="danger"
+        confirmText="Tout supprimer"
+        cancelText="Annuler"
+      >
+        <p className="text-gray-600 dark:text-gray-300">
+          Êtes-vous sûr de vouloir supprimer <strong>tous les articles</strong> de votre garde-manger ?
+          <br />
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Cette action est irréversible.
+          </span>
         </p>
       </Modal>
     </motion.div>
