@@ -12,6 +12,9 @@ import { translateIngredientToFrench } from "./ingredientTranslator";
 import { prisma } from "../prisma";
 import { logger } from "./logger";
 
+// Taux de change USD/CAD (1 CAD = 0.74 USD, donc 1 USD = 1/0.74 CAD ≈ 1.35 CAD)
+const USD_TO_CAD_RATE = 1 / 0.74; // ≈ 1.35135
+
 export interface SpoonacularRecipeCostResult {
   totalCost: number; // Coût total en dollars CAD
   ingredients: Array<{
@@ -121,7 +124,7 @@ export async function calculateSpoonacularRecipeCost(
           
           // Fallback: utiliser le prix Spoonacular (convertir de centimes USD en dollars CAD)
           const priceUSD = spoonIngredient.price / 100; // Convertir centimes -> dollars USD
-          const priceCAD = priceUSD / 0.74; // Convertir USD -> CAD
+          const priceCAD = priceUSD * USD_TO_CAD_RATE; // Convertir USD -> CAD
           ingredientCost = priceCAD;
           source = "spoonacular";
         }
@@ -139,9 +142,9 @@ export async function calculateSpoonacularRecipeCost(
             spoonIngredient.unit
           );
         } catch (error) {
-          // Si erreur, utiliser le prix Spoonacular
+          // Si erreur, utiliser le prix Spoonacular (convertir de centimes USD en dollars CAD)
           const priceUSD = spoonIngredient.price / 100;
-          originalIngredientCost = priceUSD / 0.74;
+          originalIngredientCost = priceUSD * USD_TO_CAD_RATE;
         }
       }
 

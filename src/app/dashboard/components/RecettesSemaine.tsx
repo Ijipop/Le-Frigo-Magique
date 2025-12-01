@@ -345,7 +345,7 @@ export default function RecettesSemaine() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
                     <span>
-                      Utilisé: {budgetUtilise.toFixed(2)}$ / {budgetTotal.toFixed(2)}$
+                      Utilisé: {budgetUtilise.toFixed(2)}$ CAD / {budgetTotal.toFixed(2)}$ CAD
                     </span>
                     <span className="font-medium">
                       {pourcentageUtilise.toFixed(1)}%
@@ -357,7 +357,7 @@ export default function RecettesSemaine() {
                 {budgetRestant < 0 && (
                   <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-xs text-red-700 dark:text-red-300">
-                      ⚠️ Vous avez dépassé votre budget de {Math.abs(budgetRestant).toFixed(2)}$. 
+                      ⚠️ Vous avez dépassé votre budget de {Math.abs(budgetRestant).toFixed(2)}$ CAD. 
                       Considérez supprimer des recettes coûteuses ou chercher des alternatives moins chères.
                     </p>
                   </div>
@@ -365,7 +365,7 @@ export default function RecettesSemaine() {
                 {budgetRestant >= 0 && budgetRestant < budgetTotal * 0.1 && (
                   <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
                     <p className="text-xs text-orange-700 dark:text-orange-300">
-                      💡 Il vous reste seulement {budgetRestant.toFixed(2)}$. 
+                      💡 Il vous reste seulement {budgetRestant.toFixed(2)}$ CAD. 
                       Cherchez des recettes économiques pour rester dans votre budget.
                     </p>
                   </div>
@@ -482,13 +482,13 @@ export default function RecettesSemaine() {
                               
                               return hasServings ? (
                                 <>
-                                  ~{(recette.estimatedCost / servingsNum).toFixed(2)}$/portion
+                                  ~{(recette.estimatedCost / servingsNum).toFixed(2)}$ CAD/portion
                                   <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
                                     ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
                                   </span>
                                 </>
                               ) : (
-                                <>~{recette.estimatedCost.toFixed(2)}$</>
+                                <>~{recette.estimatedCost.toFixed(2)}$ CAD</>
                               );
                             })()}
                           </span>
