@@ -7,13 +7,13 @@ import {
   SignUpButton,
   SignedIn,
   SignedOut,
-  UserButton,
 } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import ThemeToggle from '../components/theme-toggle'
 import { ToastProvider } from '../components/providers/toast-provider'
+import UserButtonClient from '../components/UserButtonClient'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -80,7 +80,7 @@ export default function RootLayout({
                       >
                         Tableau de bord
                       </Link>
-                      <UserButton />
+                      <UserButtonClient />
                     </SignedIn>
                   </div>
                 </div>

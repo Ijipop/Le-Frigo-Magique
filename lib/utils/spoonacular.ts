@@ -23,6 +23,10 @@ interface SpoonacularSearchResponse {
   totalResults: number;
 }
 
+// Taux de change USD/CAD (1 CAD = 0.74 USD, donc 1 USD = 1/0.74 CAD ≈ 1.35 CAD)
+const USD_TO_CAD_RATE = 1 / 0.74; // ≈ 1.35135
+const CAD_TO_USD_RATE = 0.74;
+
 /**
  * Recherche des recettes par budget via Spoonacular
  * @param maxPrice - Budget maximum en dollars CAD
@@ -31,7 +35,7 @@ interface SpoonacularSearchResponse {
  * @param maxResults - Nombre maximum de résultats à retourner
  */
 export async function searchRecipesByBudget(
-  maxPrice: number,
+  maxPrice: number, // Budget maximum en dollars CAD
   typeRepas?: string,
   allergies: string[] = [],
   maxResults: number = 20
@@ -41,7 +45,7 @@ export async function searchRecipesByBudget(
   image: string | null;
   snippet: string;
   source: string;
-  estimatedCost: number;
+  estimatedCost: number; // Prix par portion en dollars CAD (converti depuis USD)
   servings: number | undefined;
   spoonacularId?: number; // ID Spoonacular pour récupérer le breakdown
 }>> {
@@ -69,10 +73,11 @@ export async function searchRecipesByBudget(
   }
 
   // Mapper les types de repas vers les paramètres Spoonacular
+  // Utiliser le paramètre "type" de l'API pour un filtrage fiable directement dans la requête
   const mealTypeMap: { [key: string]: string } = {
     "dejeuner": "breakfast",
     "diner": "lunch",
-    "souper": "dinner",
+    "souper": "main course", // Utiliser "main course" pour les soupers (plus fiable que "dinner")
     "collation": "snack",
   };
 
@@ -92,26 +97,26 @@ export async function searchRecipesByBudget(
     "moutarde": "", // Spoonacular n'a pas de filtre spécifique pour la moutarde
   };
 
-  // Convertir le budget CAD en USD pour Spoonacular (taux approximatif 1 CAD = 0.74 USD)
+  // Convertir le budget CAD en USD pour Spoonacular
   // Spoonacular attend maxPrice en centimes USD, donc on multiplie par 100
-  const maxPriceUSD = maxPrice * 0.74; // Conversion CAD -> USD
+  const maxPriceUSD = maxPrice * CAD_TO_USD_RATE; // Conversion CAD -> USD
   const maxPriceCents = Math.round(maxPriceUSD * 100); // Convertir en centimes
   
   // Construire les paramètres de recherche
   // addRecipeInformation=true permet d'obtenir les dishTypes directement dans la réponse
-  // STRATÉGIE OPTIMISÉE : Demander PLUS de résultats que nécessaire pour le cache
-  // Cela permet de stocker plus de résultats dans le cache et de les mélanger à chaque fois
-  // pour avoir de la variété même avec le cache
-  // On demande 5-6x plus que maxResults pour avoir une bonne marge après filtrage
-  const requestedCount = Math.max(maxResults * 6, 30); // 6x plus, minimum 30 pour avoir de la variété dans le cache
-  const actualCount = Math.min(requestedCount, 50); // Maximum 50 pour économiser les appels API tout en ayant de la variété
+  // 🎯 STRATÉGIE POUR SAAS PROFESSIONNEL : Demander BEAUCOUP plus de résultats pour le cache
+  // Cela permet de stocker un large pool de recettes dans le cache et de les mélanger à chaque fois
+  // pour avoir de la variété et inspirer les utilisateurs avec des menus différents à chaque recherche
+  // On demande 10x plus que maxResults pour avoir une excellente variété dans le cache
+  const requestedCount = Math.max(maxResults * 10, 50); // 10x plus, minimum 50 pour avoir une excellente variété dans le cache
+  const actualCount = Math.min(requestedCount, 100); // Maximum 100 pour avoir un pool très large de recettes en cache
   
   // Utiliser un offset aléatoire pour avoir de la variété (si Spoonacular le supporte)
   // Pour l'instant, on utilise sort: "random" qui donne déjà de la variété
   const params = new URLSearchParams({
     apiKey: apiKey,
     maxPrice: maxPriceCents.toString(), // Spoonacular attend un entier (en centimes USD)
-    number: actualCount.toString(), // Maximum 30 résultats (au lieu de 50-100)
+    number: actualCount.toString(), // Maximum 100 résultats pour avoir un pool large de recettes en cache
     addRecipeInformation: "true", // Inclut dishTypes dans la réponse
     fillIngredients: "false",
     sort: "random", // Trier aléatoirement pour avoir de la variété à chaque recherche
@@ -120,9 +125,14 @@ export async function searchRecipesByBudget(
   
   console.log(`📊 [Spoonacular] Demande de ${actualCount} résultats (maxResults demandé: ${maxResults})`);
 
-  // NOTE: On n'utilise plus le paramètre "type" car il n'est pas fiable
-  // On va filtrer par dishTypes après avoir reçu les résultats (voir plus bas)
-  // Cela permet d'utiliser le champ dishTypes qui est plus fiable
+  // 🎯 UTILISER LE PARAMÈTRE "type" DIRECTEMENT DANS LA REQUÊTE API
+  // C'est la façon la plus simple et la plus fiable de filtrer par type de repas
+  // Spoonacular filtre directement côté serveur, évitant les recettes non pertinentes
+  if (typeRepas && mealTypeMap[typeRepas.toLowerCase()]) {
+    const spoonacularType = mealTypeMap[typeRepas.toLowerCase()];
+    params.append("type", spoonacularType);
+    console.log(`🍴 [Spoonacular] Filtrage par type: "${typeRepas}" → "${spoonacularType}"`);
+  }
 
   // Ajouter les restrictions diététiques (allergies)
   const diets: string[] = [];
@@ -252,104 +262,34 @@ export async function searchRecipesByBudget(
       console.log(`🚫 [Spoonacular] ${noImageCount} recette(s) exclue(s) (pas de photo)`);
     }
 
-    // Filtrer par type de repas si spécifié (en utilisant dishTypes au lieu du paramètre type)
+    // 🎯 Le filtrage par type est maintenant fait directement dans la requête API via le paramètre "type"
+    // On n'a plus besoin de filtrer après coup avec dishTypes, ce qui simplifie grandement le code
+    // Spoonacular garantit que seules les recettes du bon type sont retournées
+    // On garde juste un filtrage minimal pour les cas edge (desserts, etc.)
     if (typeRepas && mealTypeMap[typeRepas.toLowerCase()]) {
       const targetType = typeRepas.toLowerCase();
       const beforeCount = filteredResults.length;
       let dessertsFiltered = 0;
       
-      filteredResults = filteredResults.filter(recipe => {
-        // EXCLUSION EXPLICITE : Si on recherche des soupers, exclure TOUS les desserts et plats sucrés
-        if (targetType === 'souper' && isDessertOrSweet(recipe)) {
-          dessertsFiltered++;
-          console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré)`);
-          return false;
-        }
-        
-        const detectedType = detectMealType(recipe.dishTypes);
-        const matches = detectedType === targetType;
-        
-        // Si le type correspond, vérifier quand même que ce n'est pas un dessert ou un pain simple
-        if (matches) {
+      // Filtrage minimal : exclure seulement les desserts évidents qui pourraient passer
+      // (normalement, le paramètre "type=main course" devrait déjà les exclure)
+      if (targetType === 'souper') {
+        filteredResults = filteredResults.filter(recipe => {
+          // Double vérification : exclure les desserts évidents (sécurité supplémentaire)
           if (isDessertOrSweet(recipe)) {
             dessertsFiltered++;
-            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré malgré type ${targetType})`);
+            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré malgré type=main course)`);
             return false;
           }
-          
-          // Pour les soupers, exclure aussi les pains simples même si le type correspond
-          if (targetType === 'souper') {
-            const titleLower = recipe.title.toLowerCase();
-            const breadKeywords = ['bread', 'simit', 'bagel', 'roll', 'bun', 'loaf', 'pain', 'baguette'];
-            if (breadKeywords.some(keyword => titleLower.includes(keyword) && !titleLower.includes('pudding'))) {
-              const isMainDishWithBread = titleLower.includes('chicken') || titleLower.includes('beef') || 
-                                         titleLower.includes('pork') || titleLower.includes('fish') ||
-                                         titleLower.includes('salmon') || titleLower.includes('turkey') ||
-                                         titleLower.includes('meat') || titleLower.includes('steak');
-              if (!isMainDishWithBread) {
-                dessertsFiltered++;
-                console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (pain simple malgré type ${targetType})`);
-                return false;
-              }
-            }
-          }
-          
           return true;
-        }
-        
-        // Si pas de type détecté et qu'on cherche souper, on accepte (par défaut)
-        // MAIS seulement si ce n'est pas un dessert, un pain simple, ou un snack
-        if (!detectedType && targetType === 'souper') {
-          if (isDessertOrSweet(recipe)) {
-            dessertsFiltered++;
-            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré, type non détecté)`);
-            return false;
-          }
-          
-          // Vérifier aussi que ce n'est pas un pain simple
-          const titleLower = recipe.title.toLowerCase();
-          const dishTypesLower = (recipe.dishTypes || []).map(t => t.toLowerCase());
-          
-          // Exclure les pains simples (pas des plats principaux)
-          const breadKeywords = ['bread', 'simit', 'bagel', 'roll', 'bun', 'loaf', 'pain', 'baguette'];
-          if (breadKeywords.some(keyword => titleLower.includes(keyword) && !titleLower.includes('pudding'))) {
-            // Exclure sauf si c'est un plat avec du pain (ex: "chicken bread" serait OK)
-            const isMainDishWithBread = titleLower.includes('chicken') || titleLower.includes('beef') || 
-                                       titleLower.includes('pork') || titleLower.includes('fish') ||
-                                       titleLower.includes('salmon') || titleLower.includes('turkey') ||
-                                       titleLower.includes('meat') || titleLower.includes('steak');
-            if (!isMainDishWithBread) {
-              dessertsFiltered++;
-              console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (pain simple, type non détecté)`);
-              return false;
-            }
-          }
-          
-          // Exclure les snacks qui ne sont pas des plats principaux
-          if (dishTypesLower.includes('snack') && !dishTypesLower.includes('dinner') && !dishTypesLower.includes('main course')) {
-            dessertsFiltered++;
-            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (snack, type non détecté)`);
-            return false;
-          }
-          
-          return true;
-        }
-        
-        return false;
-      });
+        });
+      }
       
       if (dessertsFiltered > 0) {
         console.log(`🚫 [Spoonacular] ${dessertsFiltered} dessert(s) filtré(s) pour "${targetType}"`);
       }
       
-      console.log(`🍴 [Spoonacular] Filtrage par dishTypes: ${beforeCount} → ${filteredResults.length} recette(s) pour "${typeRepas}"`);
-      
-      // Si aucun résultat après filtrage, log les dishTypes pour debug
-      if (filteredResults.length === 0 && data.results.length > 0) {
-        console.log(`⚠️ [Spoonacular] Aucun résultat après filtrage. Exemple de dishTypes:`, 
-          data.results.slice(0, 3).map(r => ({ title: r.title, dishTypes: r.dishTypes }))
-        );
-      }
+      console.log(`🍴 [Spoonacular] Filtrage par type API: ${beforeCount} → ${filteredResults.length} recette(s) pour "${typeRepas}"`);
     }
 
     // Mélanger les résultats pour avoir plus de variété (même si on a trié par random, on peut encore mélanger)
@@ -370,17 +310,16 @@ export async function searchRecipesByBudget(
       // Conversion : pricePerServing de Spoonacular est en CENTIMES USD
       // Exemple : pricePerServing = 5 signifie 5 centimes USD = 0.05 USD
       // 1. Diviser par 100 pour convertir centimes -> dollars USD
-      // 2. Convertir USD -> CAD : si 1 CAD = 0.74 USD, alors 1 USD = 1/0.74 CAD ≈ 1.35 CAD
-      // Donc on MULTIPLIE par (1/0.74) pour convertir USD -> CAD
-      // Exemple : 5 centimes USD = 0.05 USD = 0.05 * 1.35 = 0.0675 CAD ≈ 0.07 CAD
+      // 2. Convertir USD -> CAD en multipliant par le taux de change
+      // Exemple : 5 centimes USD = 0.05 USD = 0.05 * USD_TO_CAD_RATE ≈ 0.0675 CAD
       const priceUSD = recipe.pricePerServing ? recipe.pricePerServing / 100 : 0;
-      const priceCAD = priceUSD * (1 / 0.74);
+      const priceCAD = priceUSD * USD_TO_CAD_RATE; // Conversion USD -> CAD
       const estimatedCost = Math.round(priceCAD * 100) / 100; // Arrondir à 2 décimales
       
       // Log pour transparence (seulement si le prix semble anormalement bas)
       if (estimatedCost > 0 && estimatedCost < 0.10 && recipe.servings && recipe.servings > 0) {
         const totalCost = estimatedCost * recipe.servings;
-        console.log(`💰 [Spoonacular] "${recipe.title}": ${estimatedCost.toFixed(2)}$/portion × ${recipe.servings} portions = ${totalCost.toFixed(2)}$ total (pricePerServing: ${recipe.pricePerServing} centimes USD)`);
+        console.log(`💰 [Spoonacular] "${recipe.title}": ${estimatedCost.toFixed(2)}$ CAD/portion × ${recipe.servings} portions = ${totalCost.toFixed(2)}$ CAD total (pricePerServing: ${recipe.pricePerServing} centimes USD)`);
       }
       
       return {
@@ -391,7 +330,7 @@ export async function searchRecipesByBudget(
           ? recipe.summary.replace(/<[^>]*>/g, "").substring(0, 200) // Nettoyer le HTML et limiter
           : "",
         source: "spoonacular.com",
-        estimatedCost: estimatedCost,
+        estimatedCost: estimatedCost, // Prix en dollars CAD (converti depuis USD)
         servings: recipe.servings || undefined,
         spoonacularId: recipe.id, // Stocker l'ID pour récupérer le breakdown plus tard
       };

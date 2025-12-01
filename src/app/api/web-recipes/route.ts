@@ -135,16 +135,62 @@ export const GET = withRateLimit(
           console.log(`💰 [API] Recherche complète - Budget par repas: ${budget.toFixed(2)}$`);
         }
         
+        // Récupérer les recettes déjà dans "Recettes de la semaine" pour les exclure
+        let existingRecipes: { urls: Set<string>; spoonacularIds: Set<number> } = { urls: new Set(), spoonacularIds: new Set() };
+        if (userId) {
+          try {
+            const utilisateur = await getOrCreateUser(userId);
+            if (utilisateur) {
+              const recettesSemaine = await prisma.recetteSemaine.findMany({
+                where: { utilisateurId: utilisateur.id },
+                select: { url: true, spoonacularId: true },
+              });
+              
+              recettesSemaine.forEach(recette => {
+                if (recette.url) {
+                  existingRecipes.urls.add(recette.url);
+                }
+                if (recette.spoonacularId) {
+                  existingRecipes.spoonacularIds.add(recette.spoonacularId);
+                }
+              });
+              
+              console.log(`📋 [API] ${recettesSemaine.length} recette(s) déjà dans "Recettes de la semaine" (${existingRecipes.urls.size} URLs, ${existingRecipes.spoonacularIds.size} IDs Spoonacular)`);
+            }
+          } catch (error) {
+            logger.warn("Erreur lors de la récupération des recettes de la semaine", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
         // Rechercher via Spoonacular avec limitation du nombre de résultats
+        // On demande plus de résultats pour compenser ceux qui seront filtrés
         const spoonacularResults = await searchRecipesByBudget(
           budget,
           typeRepasFilter || typeRepas,
           allergiesArray,
-          maxResults // Nombre de résultats limité selon nbJours
+          maxResults * 2 // Demander 2x plus pour compenser le filtrage des recettes déjà présentes
         );
 
+        // Filtrer les recettes déjà dans "Recettes de la semaine"
+        let filteredResults = spoonacularResults.filter(recipe => {
+          // Exclure si l'URL correspond ou si le spoonacularId correspond
+          const isDuplicate = 
+            (recipe.url && existingRecipes.urls.has(recipe.url)) ||
+            (recipe.spoonacularId && existingRecipes.spoonacularIds.has(recipe.spoonacularId));
+          
+          if (isDuplicate) {
+            console.log(`🚫 [API] Recette "${recipe.title}" exclue (déjà dans "Recettes de la semaine")`);
+          }
+          
+          return !isDuplicate;
+        });
+
+        console.log(`✅ [API] ${filteredResults.length} recette(s) après exclusion des recettes déjà présentes (${spoonacularResults.length - filteredResults.length} exclue(s))`);
+
         // Filtrer par allergies si nécessaire (Spoonacular gère déjà certaines allergies, mais on double-vérifie)
-        let finalResults = spoonacularResults;
+        let finalResults = filteredResults;
         if (allergiesArray.length > 0) {
           // Spoonacular a déjà filtré, mais on peut faire un filtrage supplémentaire si nécessaire
           // Pour l'instant, on fait confiance à Spoonacular
@@ -154,9 +200,13 @@ export const GET = withRateLimit(
         // Trier par coût croissant
         finalResults.sort((a, b) => (a.estimatedCost || 0) - (b.estimatedCost || 0));
 
-        // Limiter selon nbJours (déjà fait dans searchRecipesByBudget, mais on double-vérifie)
-        // maxResults a déjà été calculé plus haut
+        // Limiter selon nbJours
+        // Si on a moins de résultats que demandé après filtrage, on retourne ce qu'on a
         const limitedResults = finalResults.slice(0, maxResults);
+        
+        if (limitedResults.length < maxResults) {
+          console.log(`⚠️ [API] Seulement ${limitedResults.length} recette(s) disponible(s) après exclusion (${maxResults} demandé(s))`);
+        }
 
         console.log(`✅ [Spoonacular] Retour de ${limitedResults.length} recette(s)`);
 
