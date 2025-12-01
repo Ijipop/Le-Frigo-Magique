@@ -101,7 +101,6 @@ const INGREDIENT_TRANSLATIONS: { [key: string]: string } = {
   "butter": "beurre",
   "cream": "creme",
   "yogurt": "yaourt",
-  "yogurt": "yogourt",
   "eggs": "oeufs",
   "egg": "oeuf",
   
