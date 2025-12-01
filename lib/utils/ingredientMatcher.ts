@@ -25,7 +25,12 @@ export function normalizeIngredientName(name: string): string {
 
 /**
  * Vérifie si deux noms d'ingrédients correspondent
- * Utilise un matching flexible (contains) après normalisation
+ * Utilise un matching STRICT pour éviter les faux positifs (ex: "crème" → "crème sure", "pomme" → "compote de pomme")
+ * 
+ * RÈGLES STRICTES :
+ * - Le terme recherché doit être un mot complet (pas juste une partie d'un mot)
+ * - Exclut les variations dérivées (ex: "crémeux" quand on cherche "crème")
+ * - Exclut les composés (ex: "compote de pomme" quand on cherche "pomme")
  */
 export function matchIngredients(
   ingredient1: string,
@@ -35,14 +40,166 @@ export function matchIngredients(
   const normalized2 = normalizeIngredientName(ingredient2);
 
   if (!normalized1 || !normalized2) return false;
+  
+  // Liste des mots d'emballage à exclure
+  const packagingWords = ['piece', 'pieces', 'set', 'sets', 'pack', 'packs', 'packet', 'packets', 'box', 'boxes', 
+                          'bag', 'bags', 'bottle', 'bottles', 'can', 'cans', 'jar', 'jars', 'container', 'containers',
+                          'unit', 'units', 'item', 'items', 'pcs', 'pc', 'ct', 'count', 'counts', 'pkg', 'pkgs',
+                          'blender', 'cookware', 'luggage', 'valise', 'knife', 'paint', 'gum', 'nicotine'];
+  
+  // 🎯 RECHERCHE STRICTE : Vérifier que le terme recherché est un MOT COMPLET
+  // Extraire les mots significatifs (filtrer les stop words et mots génériques d'emballage)
+  const stopWords = ['de', 'le', 'la', 'les', 'du', 'des', 'et', 'ou', 'the', 'of', 'and', 'or', 'a', 'an', 'en', 'au', 'aux'];
+  
+  // Extraire les mots significatifs (filtrer stop words et packaging words)
+  const words1 = normalized1.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w) && !packagingWords.includes(w));
+  const words2 = normalized2.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w) && !packagingWords.includes(w));
+  
+  // Si l'ingrédient recherché ne contient que des mots d'emballage, c'est invalide
+  if (words1.length === 0) {
+    return false;
+  }
+  
+  // Si le produit ne contient que des mots d'emballage, exclure
+  if (words2.length === 0) {
+    return false;
+  }
 
-  // Match exact après normalisation
-  if (normalized1 === normalized2) return true;
+  // Match exact après normalisation (mais seulement si ce n'est pas juste des mots d'emballage)
+  if (normalized1 === normalized2 && words1.length > 0 && words2.length > 0) {
+    return true;
+  }
+  
+  // Si l'ingrédient recherché est un seul mot, être TRÈS strict
+  if (words1.length === 1) {
+    const searchWord = words1[0];
+    
+    // Exclure si le mot recherché est un mot d'emballage
+    if (packagingWords.includes(searchWord)) {
+      return false;
+    }
+    
+    // Vérifier que le mot recherché apparaît comme un MOT COMPLET dans l'item
+    // Utiliser des limites de mots (word boundaries) pour éviter les matches partiels
+    const wordBoundaryRegex = new RegExp(`\\b${searchWord}\\b`, 'i');
+    const hasExactWord = wordBoundaryRegex.test(normalized2);
+    
+    if (hasExactWord) {
+      // Vérifier que le produit ne contient PAS uniquement des mots d'emballage
+      // Si le produit ne contient que des mots d'emballage et pas l'ingrédient réel, c'est un faux positif
+      const productWords = normalized2.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w));
+      const productWordsOnly = productWords.filter(w => !packagingWords.includes(w));
+      
+      // Si le produit ne contient que des mots d'emballage (pas d'ingrédient réel), exclure
+      if (productWordsOnly.length === 0) {
+        return false;
+      }
+      
+      // Vérifier que l'ingrédient recherché est vraiment présent (pas juste un mot d'emballage)
+      const hasRealIngredient = productWordsOnly.some(w => w === searchWord || w.includes(searchWord) || searchWord.includes(w));
+      if (!hasRealIngredient) {
+        return false;
+      }
+      // ✅ Le mot est présent comme mot complet
+      // MAIS vérifier les exclusions spécifiques pour éviter les faux positifs
+      
+      // Exclusions pour "crème" : exclure "crème sure", "crémeux", "crème glacée", etc.
+      if (searchWord === 'creme' || searchWord === 'crème') {
+        const excludedPatterns = ['creme sure', 'creme glacee', 'creme glace', 'creme fouettee', 'creme fouette', 
+                                  'cremeux', 'cremeuse', 'yogourt cremeux', 'yogurt cremeux', 'yogourt cremeuse', 'yogurt cremeuse',
+                                  'fromage creme', 'cream cheese', 'sour cream', 'whipped cream'];
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded) {
+          return false; // Exclure les variations de "crème"
+        }
+      }
+      
+      // Exclusions pour "pomme" : exclure "compote de pomme", "jus de pomme", etc.
+      if (searchWord === 'pomme' || searchWord === 'apple') {
+        const excludedPatterns = ['compote', 'compote de pomme', 'apple sauce', 'jus de pomme', 'apple juice',
+                                  'croustade', 'tarte aux pommes', 'apple pie', 'pomme de terre', 'potato'];
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded && !normalized2.startsWith('pomme') && !normalized2.startsWith('apple')) {
+          // Accepter seulement si "pomme" est le premier mot (ex: "pomme gala", "apple red")
+          return false; // Exclure les composés avec "pomme"
+        }
+      }
+      
+      // Exclusions pour "lait" : exclure "lait de coco", "lait d'amande", etc. (sauf si c'est explicitement "lait")
+      if (searchWord === 'lait' || searchWord === 'milk') {
+        const excludedPatterns = ['lait de coco', 'coconut milk', 'lait damande', 'almond milk', 
+                                  'lait de soja', 'soy milk', 'lait davoine', 'oat milk',
+                                  'laitue', 'lettuce']; // Éviter "lait" dans "laitue"
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded && !normalized2.startsWith('lait') && !normalized2.startsWith('milk')) {
+          return false; // Exclure les laits végétaux sauf si "lait" est le premier mot
+        }
+      }
+      
+      // Exclusions pour "beurre" : exclure "beurre d'arachide", "beurre de cacahuète", etc.
+      if (searchWord === 'beurre' || searchWord === 'butter') {
+        const excludedPatterns = ['beurre darachide', 'peanut butter', 'beurre de cacahuete', 'beurre de cacahuète',
+                                  'beurre damande', 'almond butter', 'beurre de noix', 'nut butter',
+                                  'beurre de coco', 'coconut butter', 'beurre de sesame', 'tahini'];
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded && !normalized2.startsWith('beurre') && !normalized2.startsWith('butter')) {
+          return false; // Exclure les beurres de noix sauf si "beurre" est le premier mot
+        }
+      }
+      
+      return true; // ✅ Match valide
+    }
+    
+    // Si le mot n'est pas présent comme mot complet, vérifier les traductions
+    // (mais toujours avec des limites strictes)
+    const translations: { [key: string]: string[] } = {
+      'lait': ['milk'],
+      'pain': ['bread', 'loaf'],
+      'fromage': ['cheese'],
+      'beurre': ['butter'],
+      'oeuf': ['egg', 'eggs'],
+      'oeufs': ['egg', 'eggs'],
+      'poulet': ['chicken'],
+      'boeuf': ['beef'],
+      'porc': ['pork'],
+      'saumon': ['salmon'],
+      'thon': ['tuna'],
+      'gingembre': ['ginger'],
+    };
+    
+    const wordVariations = translations[searchWord] || [];
+    for (const translation of wordVariations) {
+      const translationRegex = new RegExp(`\\b${translation}\\b`, 'i');
+      if (translationRegex.test(normalized2)) {
+        // Pour "beurre" / "butter", vérifier qu'on n'a pas "peanut butter" ou autres beurres de noix
+        if ((searchWord === 'beurre' || searchWord === 'butter') && translation === 'butter') {
+          const excludedButterPatterns = ['peanut butter', 'almond butter', 'nut butter', 'coconut butter', 'tahini'];
+          const isExcludedButter = excludedButterPatterns.some(pattern => normalized2.includes(pattern));
+          if (isExcludedButter) {
+            continue; // Ignorer ce match, ce n'est pas du beurre classique
+          }
+        }
+        return true; // ✅ Match via traduction
+      }
+    }
+    
+    // Pas de match strict trouvé
+    return false;
+  }
 
-  // Extraire les mots clés (séparer par espaces, filtrer les mots courts comme "de", "le", etc.)
-  const stopWords = ['de', 'le', 'la', 'les', 'du', 'des', 'et', 'ou', 'the', 'of', 'and', 'or'];
-  const words1 = normalized1.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w));
-  const words2 = normalized2.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w));
+  // Pour les ingrédients multi-mots, utiliser une logique plus flexible mais toujours stricte
+  // Réutiliser les mots déjà extraits (words1 et words2 sont déjà définis plus haut avec filtrage)
+  
+  // Vérifier que le produit ne contient pas uniquement des mots d'emballage
+  // words2 est déjà filtré (ligne 76), donc on peut l'utiliser directement
+  if (words2.length === 0) {
+    return false; // Le produit ne contient que des mots d'emballage, pas un vrai ingrédient
+  }
+  
+  // Vérifier que l'ingrédient recherché (sans mots d'emballage) est vraiment présent dans le produit
+  if (words1.length === 0) {
+    return false; // L'ingrédient recherché ne contient que des mots d'emballage
+  }
 
   // Dictionnaire de traductions/variations communes
   const translations: { [key: string]: string[] } = {
