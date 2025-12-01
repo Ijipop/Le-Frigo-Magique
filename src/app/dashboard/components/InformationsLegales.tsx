@@ -248,7 +248,7 @@ export default function InformationsLegales() {
                           Trouvez des recettes
                         </h4>
                         <p className="text-sm">
-                          Allez dans <strong>"Frigo Magique"</strong>. 
+                          Allez dans <strong>"FrigoPop"</strong>. 
                           Le site recherche automatiquement des recettes selon :
                         </p>
                         <ul className="text-sm mt-2 space-y-1 ml-4 list-disc">
@@ -342,7 +342,7 @@ export default function InformationsLegales() {
           <div className="space-y-3 text-gray-700 dark:text-gray-300">
             <div className="flex items-start gap-3">
               <span className="font-medium min-w-[120px]">Nom :</span>
-              <span>Frigo Magique</span>
+              <span>FrigoPop</span>
             </div>
             <div className="flex items-start gap-3">
               <span className="font-medium min-w-[120px]">Version :</span>
@@ -409,7 +409,7 @@ export default function InformationsLegales() {
                     </h4>
                     <div className="space-y-2">
                       <p>
-                        <strong>Éditeur :</strong> Frigo Magique
+                        <strong>Éditeur :</strong> FrigoPop
                       </p>
                       <p>
                         <strong>Propriétaire :</strong> Jean-François Lefebvre

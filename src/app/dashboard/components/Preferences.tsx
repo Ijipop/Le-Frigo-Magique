@@ -295,7 +295,7 @@ export default function Preferences() {
               </p>
             )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Vous pourrez rechercher des recettes avec ces aliments depuis la page Frigo Magique
+              Vous pourrez rechercher des recettes avec ces aliments depuis la page FrigoPop
             </p>
           </div>
 

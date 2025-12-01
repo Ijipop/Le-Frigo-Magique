@@ -7,141 +7,126 @@ datasource db {
 }
 
 model Utilisateur {
-  id                 String  @id @default(cuid())
-  authUserId         String? @unique // id Clerk ou autre système d'auth
-  email              String  @unique
-  nom                String?
-  nbPersonnes        Int? // nombre de personnes au foyer
-  budgetHebdomadaire Int? // budget en dollars
-  typeRepasBudget    String? // "dejeuner", "diner", "souper" - pour recherche par budget
-  jourSemaineBudget  Int? // 1-7 (1=lundi, 7=dimanche) - pour recherche par budget
-
-  preferences       Preferences?
-  gardeManger       ArticleGardeManger[]
-  repasSemaine      RepasSemaine[]
-  listesEpicerie    ListeEpicerie[]
-  recettesFavorites RecetteFavorite[]
+  id                      String                  @id @default(cuid())
+  authUserId              String?                 @unique
+  email                   String                  @unique
+  nom                     String?
+  nbPersonnes             Int?
+  budgetHebdomadaire      Int?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  jourSemaineBudget       Int?
+  typeRepasBudget         String?
+  gardeManger             ArticleGardeManger[]
+  listesEpicerie          ListeEpicerie[]
+  preferences             Preferences?
+  recettesFavorites       RecetteFavorite[]
   recettesFavoritesSearch RecetteFavoriteSearch[]
-  recettesSemaine   RecetteSemaine[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  recettesSemaine         RecetteSemaine[]
+  repasSemaine            RepasSemaine[]
 }
 
 model Preferences {
-  id            String      @id @default(cuid())
-  utilisateurId String      @unique
-  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  vegetarien        Boolean @default(false)
-  sansGluten        Boolean @default(false)
-  allergenes        String? // JSON ou texte libre
-  cuisinesFavorites String? // ex: "italien, asiatique"
-  alimentsPreferes  String? // JSON array des IDs d'aliments préférés
-  codePostal        String? // Code postal pour les circulaires (ex: H1Y3C3)
-  isPremium         Boolean @default(false) // Statut premium de l'utilisateur
-  premiumUntil      DateTime? // Date d'expiration de l'abonnement premium
+  id                String      @id @default(cuid())
+  utilisateurId     String      @unique
+  vegetarien        Boolean     @default(false)
+  sansGluten        Boolean     @default(false)
+  allergenes        String?
+  cuisinesFavorites String?
+  alimentsPreferes  String?
+  codePostal        String?
+  isPremium         Boolean     @default(false)
+  premiumUntil      DateTime?
+  utilisateur       Utilisateur @relation(fields: [utilisateurId], references: [id])
 }
 
 model ArticleGardeManger {
   id            String      @id @default(cuid())
   utilisateurId String
+  nom           String
+  quantite      Float       @default(0)
+  unite         String?
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  nom      String
-  quantite Float   @default(0)
-  unite    String? // ex: "g", "ml", "unite"
 }
 
 model RecetteReference {
-  id               String  @id @default(cuid())
-  titre            String
-  sourceUrl        String // lien externe pour respecter la PI
-  imageUrl         String?
-  tempsPreparation Int?
-  tempsCuisson     Int?
-
-  valeursNutritives ValeursNutritives?
-  repas             Repas[]
+  id                String             @id @default(cuid())
+  titre             String
+  sourceUrl         String
+  imageUrl          String?
+  tempsPreparation  Int?
+  tempsCuisson      Int?
   favoris           RecetteFavorite[]
+  repas             Repas[]
+  valeursNutritives ValeursNutritives?
 }
 
 model ValeursNutritives {
   id        String           @id @default(cuid())
   recetteId String           @unique
-  recette   RecetteReference @relation(fields: [recetteId], references: [id])
-
   calories  Int?
   proteines Float?
   glucides  Float?
   lipides   Float?
+  recette   RecetteReference @relation(fields: [recetteId], references: [id])
 }
 
 model RepasSemaine {
   id            String      @id @default(cuid())
   utilisateurId String
+  semaine       Int
+  annee         Int
+  repas         Repas[]
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  semaine Int // numéro de semaine ou date de début
-  annee   Int
-  repas   Repas[]
 }
 
 model Repas {
-  id             String       @id @default(cuid())
+  id             String            @id @default(cuid())
   repasSemaineId String
-  repasSemaine   RepasSemaine @relation(fields: [repasSemaineId], references: [id])
-
-  jour   Int // 1= lundi, 7 = dimanche
-  moment String // "souper", "diner", etc.
-
-  recetteId String?
-  recette   RecetteReference? @relation(fields: [recetteId], references: [id])
+  jour           Int
+  moment         String
+  recetteId      String?
+  recette        RecetteReference? @relation(fields: [recetteId], references: [id])
+  repasSemaine   RepasSemaine      @relation(fields: [repasSemaineId], references: [id])
 }
 
 model ListeEpicerie {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   utilisateurId String
-  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  semaine   Int?
-  annee     Int?
-  lignes    LigneListe[]
-  coutTotal Float? // estimation
-  createdAt DateTime     @default(now())
+  semaine       Int?
+  annee         Int?
+  coutTotal     Float?
+  createdAt     DateTime     @default(now())
+  lignes        LigneListe[]
+  utilisateur   Utilisateur  @relation(fields: [utilisateurId], references: [id])
 }
 
 model LigneListe {
-  id      String        @id @default(cuid())
-  listeId String
-  liste   ListeEpicerie @relation(fields: [listeId], references: [id])
-
-  itemId String?
-  item   Item?   @relation(fields: [itemId], references: [id])
-
-  nom        String // au cas où l'item n'existe plus
+  id         String        @id @default(cuid())
+  listeId    String
+  itemId     String?
+  nom        String
   quantite   Float
   unite      String?
   prixEstime Float?
+  item       Item?         @relation(fields: [itemId], references: [id])
+  liste      ListeEpicerie @relation(fields: [listeId], references: [id])
 }
 
 model Item {
-  id        String  @id @default(cuid())
+  id        String       @id @default(cuid())
   nom       String
-  categorie String? // ex: "laitier", "viande", etc.
-
-  lignes LigneListe[]
+  categorie String?
+  lignes    LigneListe[]
 }
 
 model RecetteFavorite {
-  id            String      @id @default(cuid())
+  id            String           @id @default(cuid())
   utilisateurId String
-  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  recetteId String
-  recette   RecetteReference @relation(fields: [recetteId], references: [id])
-
-  createdAt DateTime @default(now())
+  recetteId     String
+  createdAt     DateTime         @default(now())
+  recette       RecetteReference @relation(fields: [recetteId], references: [id])
+  utilisateur   Utilisateur      @relation(fields: [utilisateurId], references: [id])
 
   @@unique([utilisateurId, recetteId])
 }
@@ -157,30 +142,28 @@ model WebSearchCache {
 model RecetteSemaine {
   id            String      @id @default(cuid())
   utilisateurId String
+  titre         String
+  url           String
+  image         String?
+  snippet       String?
+  source        String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  estimatedCost Float?
+  servings      Int?
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  titre   String // Titre de la recette
-  url     String // Lien vers la recette
-  image   String? // URL de l'image
-  snippet String? // Description courte
-  source  String? // Site source (ex: ricardocuisine.com)
-  estimatedCost Float? // Coût approximatif en dollars CAD
-  servings Int? // Nombre de portions/personnes
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@index([utilisateurId])
 }
 
 model PrixIngredient {
-  id          String   @id @default(cuid())
-  nom         String   @unique // Nom normalisé de l'ingrédient (ex: "poulet", "pates")
-  prixMoyen   Float    // Prix moyen en dollars CAD
-  categorie   String?  // Catégorie (ex: "viande", "pâtes", "légumes")
-  source      String   @default("flipp") // "flipp", "fallback", "gpt"
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  nom       String   @unique
+  prixMoyen Float
+  categorie String?
+  source    String   @default("flipp")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 
   @@index([nom])
   @@index([categorie])
@@ -189,18 +172,16 @@ model PrixIngredient {
 model RecetteFavoriteSearch {
   id            String      @id @default(cuid())
   utilisateurId String
+  titre         String
+  url           String
+  image         String?
+  snippet       String?
+  source        String?
+  estimatedCost Float?
+  servings      Int?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
-
-  titre   String // Titre de la recette
-  url     String // Lien vers la recette (unique par utilisateur)
-  image   String? // URL de l'image
-  snippet String? // Description courte
-  source  String? // Site source (ex: ricardocuisine.com)
-  estimatedCost Float? // Coût approximatif en dollars CAD
-  servings Int? // Nombre de portions/personnes
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@unique([utilisateurId, url])
   @@index([utilisateurId])
