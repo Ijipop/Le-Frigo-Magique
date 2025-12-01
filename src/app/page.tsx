@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import { SignedOut, SignUpButton } from '@clerk/nextjs'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
@@ -29,9 +30,19 @@ export default async function Home() {
       <section className="relative overflow-hidden px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="text-center">
-            <h1 className="text-5xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl md:text-7xl animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="flex justify-center mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <Image
+                src="/logo.png"
+                alt="FrigoPop"
+                width={120}
+                height={120}
+                className="h-24 w-auto sm:h-32 md:h-40 rounded-2xl"
+                priority
+              />
+            </div>
+            <h1 className="text-5xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl md:text-7xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
               <span className="bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
-                Frigo Magique
+                FrigoPop
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-xl leading-8 text-gray-600 dark:text-gray-300 sm:text-2xl animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
@@ -269,7 +280,7 @@ export default async function Home() {
               Ce que disent nos utilisateurs
             </h2>
             <p className="mx-auto max-w-2xl text-lg text-gray-600 dark:text-gray-300">
-              Découvrez comment Frigo Magique aide les gens à mieux manger tout en respectant leur budget
+              Découvrez comment FrigoPop aide les gens à mieux manger tout en respectant leur budget
             </p>
           </div>
 
@@ -281,7 +292,7 @@ export default async function Home() {
                 ))}
               </div>
               <p className="text-gray-700 dark:text-gray-300 mb-6 italic">
-                "J'ai un budget serré de 80$ par semaine pour 4 personnes. Frigo Magique me propose toujours des recettes délicieuses qui respectent mon budget. C'est génial !"
+                "J'ai un budget serré de 80$ par semaine pour 4 personnes. FrigoPop me propose toujours des recettes délicieuses qui respectent mon budget. C'est génial !"
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white font-bold">
@@ -465,7 +476,16 @@ export default async function Home() {
       <footer className="bg-gray-900 dark:bg-black py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h3 className="text-2xl font-bold text-white">Frigo Magique</h3>
+            <div className="flex justify-center mb-4">
+              <Image
+                src="/logo.png"
+                alt="FrigoPop"
+                width={60}
+                height={60}
+                className="h-12 w-auto rounded-lg"
+              />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">FrigoPop</h3>
             <p className="mt-2 text-gray-400 dark:text-gray-500">Votre assistant intelligent pour la planification de repas</p>
             <div className="mt-8 flex justify-center gap-6">
               <Link href="/signin" className="text-gray-400 dark:text-gray-500 hover:text-white dark:hover:text-gray-300">
@@ -476,7 +496,7 @@ export default async function Home() {
               </Link>
             </div>
             <p className="mt-8 text-sm text-gray-500 dark:text-gray-600">
-              © 2025 Frigo Magique. Tous droits réservés.
+              © 2025 FrigoPop. Tous droits réservés.
             </p>
           </div>
         </div>

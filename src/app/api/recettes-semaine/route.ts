@@ -19,37 +19,67 @@ const createRecetteSchema = z.object({
 // GET - Récupérer les recettes de la semaine
 export async function GET() {
   try {
+    console.log("🔍 [API GET] Début de la récupération des recettes");
+    
     const { userId } = await auth();
     if (!userId) {
+      console.error("❌ [API GET] Pas d'userId");
       return NextResponse.json<ApiResponse>(
         { error: "Non autorisé" },
         { status: 401 }
       );
     }
+    console.log("✅ [API GET] userId:", userId);
 
+    console.log("👤 [API GET] Récupération/création de l'utilisateur...");
     const utilisateur = await getOrCreateUser(userId);
     if (!utilisateur) {
+      console.error("❌ [API GET] Utilisateur non trouvé ou non créé");
       return NextResponse.json<ApiResponse>(
         { error: "Utilisateur non trouvé" },
         { status: 404 }
       );
     }
+    console.log("✅ [API GET] Utilisateur trouvé:", utilisateur.id);
 
+    console.log("📋 [API GET] Récupération des recettes depuis la base de données...");
     const recettes = await prisma.recetteSemaine.findMany({
       where: { utilisateurId: utilisateur.id },
       orderBy: { createdAt: "desc" },
     });
+    console.log(`✅ [API GET] ${recettes.length} recette(s) trouvée(s)`);
 
     return NextResponse.json<ApiResponse>({
       data: recettes,
     });
   } catch (error) {
-    console.error("Erreur lors de la récupération des recettes:", error);
+    console.error("❌ [API GET] ERREUR lors de la récupération des recettes:");
+    console.error("❌ [API GET] Type d'erreur:", error?.constructor?.name);
+    console.error("❌ [API GET] Erreur complète:", error);
+    
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error("Détails de l'erreur:", { errorMessage, errorStack });
+    const errorName = error instanceof Error ? error.name : "Unknown";
+    
+    console.error("❌ [API GET] Détails de l'erreur:", {
+      name: errorName,
+      message: errorMessage,
+      stack: errorStack,
+    });
+    
+    // Si c'est une erreur Prisma, donner plus de détails
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error("❌ [API GET] Code d'erreur Prisma:", (error as any).code);
+      console.error("❌ [API GET] Meta Prisma:", (error as any).meta);
+    }
+    
     return NextResponse.json<ApiResponse>(
-      { error: "Erreur serveur", details: errorMessage },
+      { 
+        error: "Erreur serveur", 
+        details: errorMessage,
+        // En développement, inclure plus de détails
+        ...(process.env.NODE_ENV === 'development' && { stack: errorStack })
+      },
       { status: 500 }
     );
   }

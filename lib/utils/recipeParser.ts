@@ -44,7 +44,7 @@ export async function parseRecipeIngredients(
     try {
       const robotsResponse = await fetch(robotsTxtUrl.toString(), {
         headers: {
-          "User-Agent": "FrigoMagique/1.0 (Recipe Cost Calculator)",
+          "User-Agent": "FrigoPop/1.0 (Recipe Cost Calculator)",
         },
       });
       
@@ -66,10 +66,10 @@ export async function parseRecipeIngredients(
     try {
       response = await fetch(url, {
         headers: {
-          "User-Agent": "FrigoMagique/1.0 (Recipe Cost Calculator - https://frigomagique.com)",
+          "User-Agent": "FrigoPop/1.0 (Recipe Cost Calculator - https://frigopop.com)",
           "Accept": "text/html,application/xhtml+xml",
           "Accept-Language": "fr-CA,fr;q=0.9",
-          "Referer": "https://frigomagique.com",
+          "Referer": "https://frigopop.com",
         },
         // Timeout pour éviter les blocages
         signal: AbortSignal.timeout(15000), // 15 secondes max (augmenté pour les sites lents)
