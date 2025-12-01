@@ -4,6 +4,7 @@ import { prisma } from "../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../lib/utils/user";
 import { createArticleSchema } from "../../../../lib/validations/garde-manger";
 import type { ApiResponse } from "../../../../lib/types/api";
+import { matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 
 // GET - Récupérer tous les articles du garde-manger de l'utilisateur connecté
 export async function GET() {
@@ -103,6 +104,39 @@ export async function POST(req: Request) {
         unite,
       },
     });
+
+    // 🛒 Supprimer automatiquement les items correspondants de la liste d'épicerie
+    try {
+      // Récupérer la liste d'épicerie active de l'utilisateur
+      const liste = await prisma.listeEpicerie.findFirst({
+        where: { utilisateurId: utilisateur.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          lignes: true,
+        },
+      });
+
+      if (liste && liste.lignes.length > 0) {
+        // Trouver les lignes qui correspondent à l'article ajouté au garde-manger
+        const lignesASupprimer = liste.lignes.filter((ligne) => 
+          matchIngredients(nom, ligne.nom)
+        );
+
+        if (lignesASupprimer.length > 0) {
+          // Supprimer les lignes correspondantes
+          await prisma.ligneListe.deleteMany({
+            where: {
+              id: { in: lignesASupprimer.map(l => l.id) },
+            },
+          });
+
+          console.log(`✅ [API garde-manger] ${lignesASupprimer.length} item(s) supprimé(s) de la liste d'épicerie`);
+        }
+      }
+    } catch (error) {
+      // Ne pas faire échouer l'ajout au garde-manger si la suppression de la liste échoue
+      console.warn("⚠️ [API garde-manger] Erreur lors de la suppression de la liste d'épicerie:", error);
+    }
 
     return NextResponse.json<ApiResponse>(
       { data: article, message: "Article créé avec succès" },

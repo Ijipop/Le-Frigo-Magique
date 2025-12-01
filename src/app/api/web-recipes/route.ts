@@ -143,15 +143,16 @@ export const GET = withRateLimit(
             if (utilisateur) {
               const recettesSemaine = await prisma.recetteSemaine.findMany({
                 where: { utilisateurId: utilisateur.id },
-                select: { url: true, spoonacularId: true },
               });
               
               recettesSemaine.forEach(recette => {
                 if (recette.url) {
                   existingRecipes.urls.add(recette.url);
                 }
-                if (recette.spoonacularId) {
-                  existingRecipes.spoonacularIds.add(recette.spoonacularId);
+                // Type assertion nécessaire car les types Prisma peuvent ne pas être à jour
+                const recetteWithSpoonacularId = recette as typeof recette & { spoonacularId?: number | null };
+                if (recetteWithSpoonacularId.spoonacularId) {
+                  existingRecipes.spoonacularIds.add(recetteWithSpoonacularId.spoonacularId);
                 }
               });
               
@@ -369,7 +370,7 @@ export const GET = withRateLimit(
             } catch (error) {
               return {
                 ...item,
-                estimatedCost: 10.00,
+                estimatedCost: 10.00, // Coût total par défaut (fallback si estimation échoue)
                 costSource: "fallback",
                 servings: item.servings || undefined,
               };
@@ -1117,7 +1118,7 @@ export const GET = withRateLimit(
           
           return {
             ...item,
-            estimatedCost: 10.00, // Prix moyen par défaut
+            estimatedCost: 10.00, // Coût total par défaut (fallback si estimation échoue)
             costSource: "fallback",
             servings: servings,
           };

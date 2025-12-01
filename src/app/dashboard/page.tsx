@@ -48,7 +48,7 @@ export default async function DashboardPage() {
     },
     {
       id: "circulaire",
-      label: "Liste/Rabais",
+      label: "Épicerie",
       icon: <ShoppingBag className="w-4 h-4" />,
       content: (
         <div className="space-y-6">

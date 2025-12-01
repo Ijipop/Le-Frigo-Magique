@@ -31,7 +31,7 @@ export default function QuickSettings() {
   const [generating, setGenerating] = useState(false);
   
   // États pour la génération de recettes
-  const [nbJours, setNbJours] = useState(7);
+  const [nbJours, setNbJours] = useState(1);
   const [nbDejeuners, setNbDejeuners] = useState(0);
   const [nbDiners, setNbDiners] = useState(0);
   const [nbSoupers, setNbSoupers] = useState(0);

@@ -286,7 +286,7 @@ export default function InformationsLegales() {
                           Faites votre liste d'épicerie
                         </h4>
                         <p className="text-sm">
-                          Allez dans <strong>"Liste/Rabais"</strong>. 
+                          Allez dans <strong>"Épicerie"</strong>. 
                           Cliquez sur <strong>"Ajouter"</strong> pour mettre des produits dans votre liste. 
                           Cliquez sur <strong>"Chercher les rabais"</strong> pour voir les meilleurs prix près de chez vous !
                         </p>

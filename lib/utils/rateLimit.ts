@@ -166,7 +166,7 @@ export const RateLimitConfigs = {
   
   // Routes très coûteuses (comme la recherche de rabais)
   EXPENSIVE: {
-    maxRequests: 5,
+    maxRequests: 15, // Augmenté de 5 à 15 pour éviter les erreurs 429 fréquentes
     windowMs: 60 * 1000, // 1 minute
   },
 } as const;

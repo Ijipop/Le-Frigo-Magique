@@ -45,7 +45,7 @@ export async function searchRecipesByBudget(
   image: string | null;
   snippet: string;
   source: string;
-  estimatedCost: number; // Prix par portion en dollars CAD (converti depuis USD)
+  estimatedCost: number; // Coût TOTAL de la recette en dollars CAD (prix par portion × nombre de portions)
   servings: number | undefined;
   spoonacularId?: number; // ID Spoonacular pour récupérer le breakdown
 }>> {
@@ -312,14 +312,17 @@ export async function searchRecipesByBudget(
       // 1. Diviser par 100 pour convertir centimes -> dollars USD
       // 2. Convertir USD -> CAD en multipliant par le taux de change
       // Exemple : 5 centimes USD = 0.05 USD = 0.05 * USD_TO_CAD_RATE ≈ 0.0675 CAD
-      const priceUSD = recipe.pricePerServing ? recipe.pricePerServing / 100 : 0;
-      const priceCAD = priceUSD * USD_TO_CAD_RATE; // Conversion USD -> CAD
-      const estimatedCost = Math.round(priceCAD * 100) / 100; // Arrondir à 2 décimales
+      const pricePerServingUSD = recipe.pricePerServing ? recipe.pricePerServing / 100 : 0;
+      const pricePerServingCAD = pricePerServingUSD * USD_TO_CAD_RATE; // Conversion USD -> CAD
+      
+      // 🎯 IMPORTANT: estimatedCost doit être le COÛT TOTAL de la recette, pas le prix par portion
+      // On multiplie le prix par portion par le nombre de portions pour obtenir le coût total
+      const servings = recipe.servings || 1; // Par défaut 1 portion si non spécifié
+      const estimatedCost = Math.round((pricePerServingCAD * servings) * 100) / 100; // Arrondir à 2 décimales
       
       // Log pour transparence (seulement si le prix semble anormalement bas)
-      if (estimatedCost > 0 && estimatedCost < 0.10 && recipe.servings && recipe.servings > 0) {
-        const totalCost = estimatedCost * recipe.servings;
-        console.log(`💰 [Spoonacular] "${recipe.title}": ${estimatedCost.toFixed(2)}$ CAD/portion × ${recipe.servings} portions = ${totalCost.toFixed(2)}$ CAD total (pricePerServing: ${recipe.pricePerServing} centimes USD)`);
+      if (pricePerServingCAD > 0 && pricePerServingCAD < 0.10 && recipe.servings && recipe.servings > 0) {
+        console.log(`💰 [Spoonacular] "${recipe.title}": ${pricePerServingCAD.toFixed(2)}$ CAD/portion × ${recipe.servings} portions = ${estimatedCost.toFixed(2)}$ CAD total (pricePerServing: ${recipe.pricePerServing} centimes USD)`);
       }
       
       return {
@@ -330,7 +333,7 @@ export async function searchRecipesByBudget(
           ? recipe.summary.replace(/<[^>]*>/g, "").substring(0, 200) // Nettoyer le HTML et limiter
           : "",
         source: "spoonacular.com",
-        estimatedCost: estimatedCost, // Prix en dollars CAD (converti depuis USD)
+        estimatedCost: estimatedCost, // Coût TOTAL de la recette en dollars CAD (prix par portion × nombre de portions)
         servings: recipe.servings || undefined,
         spoonacularId: recipe.id, // Stocker l'ID pour récupérer le breakdown plus tard
       };

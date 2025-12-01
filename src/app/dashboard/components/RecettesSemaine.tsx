@@ -278,6 +278,8 @@ export default function RecettesSemaine() {
         >
           {(() => {
             // Calculer le budget total utilisé
+            // estimatedCost représente le coût TOTAL de chaque recette (pas le prix par portion)
+            // On additionne donc directement les coûts totaux pour obtenir le budget utilisé
             const budgetUtilise = recettes.reduce((total, recette) => {
               const cost = recette.estimatedCost;
               if (cost !== null && cost !== undefined && cost > 0) {

@@ -111,6 +111,10 @@ export default function GardeManger() {
         setShowForm(false);
         toast.success("Article ajouté avec succès !");
         fetchArticles();
+        
+        // Déclencher un événement pour rafraîchir la liste d'épicerie
+        // (les items correspondants ont été supprimés automatiquement par l'API)
+        window.dispatchEvent(new CustomEvent("garde-manger-updated"));
       } else {
         const errorData = await response.json();
         toast.error(errorData.error || "Erreur lors de l'ajout");
