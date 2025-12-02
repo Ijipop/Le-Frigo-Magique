@@ -422,6 +422,11 @@ export default function CategoryItemSelector() {
         toast.success(`${newItemName} ajouté au garde-manger !`);
         setNewItemName("");
         setAddModalOpen(false);
+        
+        // Déclencher un événement pour rafraîchir la liste d'épicerie
+        // (les items correspondants ont été supprimés automatiquement par l'API)
+        window.dispatchEvent(new CustomEvent("garde-manger-updated"));
+        
         // Rafraîchir la page pour voir le nouvel item
         window.location.reload();
       } else {

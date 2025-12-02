@@ -8,7 +8,7 @@
 import { getRecipePriceBreakdown } from "./spoonacular";
 import { getIngredientPrice } from "./ingredientPrice";
 import { normalizeIngredientName, matchIngredients } from "./ingredientMatcher";
-import { translateIngredientToFrench } from "./ingredientTranslator";
+import { translateIngredientName } from "../ingredients/translateToFr";
 import { prisma } from "../prisma";
 import { logger } from "./logger";
 
@@ -66,7 +66,7 @@ export async function calculateSpoonacularRecipeCost(
 
     for (const spoonIngredient of breakdown.ingredients) {
       // Traduire l'ingrédient anglais vers le français
-      const frenchName = translateIngredientToFrench(spoonIngredient.name);
+      const frenchName = translateIngredientName(spoonIngredient.name);
       const normalizedSpoonName = normalizeIngredientName(frenchName);
       
       logger.debug("Ingrédient Spoonacular traduit", {

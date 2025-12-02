@@ -278,6 +278,8 @@ export default function RecettesSemaine() {
         >
           {(() => {
             // Calculer le budget total utilisé
+            // estimatedCost représente le coût TOTAL de chaque recette (pas le prix par portion)
+            // On additionne donc directement les coûts totaux pour obtenir le budget utilisé
             const budgetUtilise = recettes.reduce((total, recette) => {
               const cost = recette.estimatedCost;
               if (cost !== null && cost !== undefined && cost > 0) {
@@ -467,7 +469,7 @@ export default function RecettesSemaine() {
                           return hasServings ? (
                             <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
                               <Users className="w-3 h-3" />
-                              {servingsNum} portion{servingsNum > 1 ? "s" : ""}
+                              {servingsNum !== null ? `${servingsNum} portion${servingsNum > 1 ? "s" : ""}` : "Portions inconnues"}
                             </span>
                           ) : null;
                         })()}
@@ -480,15 +482,18 @@ export default function RecettesSemaine() {
                                 : null;
                               const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
                               
-                              return hasServings ? (
+                              // estimatedCost est maintenant le coût TOTAL de la recette
+                              const costPerServing = hasServings ? (recette.estimatedCost / servingsNum) : null;
+                              
+                              return (
                                 <>
-                                  ~{(recette.estimatedCost / servingsNum).toFixed(2)}$ CAD/portion
-                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
-                                    ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
-                                  </span>
+                                  <span className="font-bold">~{recette.estimatedCost.toFixed(2)}$ CAD</span>
+                                  {costPerServing !== null && servingsNum !== null && (
+                                    <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                      ({costPerServing.toFixed(2)}$/portion • {servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                    </span>
+                                  )}
                                 </>
-                              ) : (
-                                <>~{recette.estimatedCost.toFixed(2)}$ CAD</>
                               );
                             })()}
                           </span>

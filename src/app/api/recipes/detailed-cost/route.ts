@@ -10,6 +10,9 @@ const requestSchema = z.object({
   url: z.string().url("L'URL doit être valide"),
 });
 
+// Runtime explicite pour Vercel (parsing HTML peut être long)
+export const runtime = "nodejs";
+
 /**
  * API pour calculer le coût détaillé d'une recette
  * 

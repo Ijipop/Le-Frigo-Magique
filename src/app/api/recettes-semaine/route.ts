@@ -5,8 +5,11 @@ import { getOrCreateUser } from "../../../../lib/utils/user";
 import { z } from "zod";
 import type { ApiResponse } from "../../../../lib/types/api";
 import { getRecipeInformation } from "../../../../lib/utils/spoonacular";
-import { translateIngredientToFrench } from "../../../../lib/utils/ingredientTranslator";
 import { normalizeIngredientName, matchIngredients } from "../../../../lib/utils/ingredientMatcher";
+import { toGroceryItem, type SpoonacularIngredient } from "../../../../lib/ingredients/translateToFr";
+
+// Runtime explicite pour Vercel (opérations DB complexes + parsing recettes)
+export const runtime = "nodejs";
 
 // Schéma simplifié pour éviter les problèmes de validation
 const createRecetteSchema = z.object({
@@ -259,15 +262,17 @@ export async function POST(req: Request) {
     
       console.log("✅ [API] Recette créée avec succès:", recette.id);
 
-      // 🍴 NOUVEAU : Si c'est une recette Spoonacular, ajouter automatiquement les ingrédients à la liste d'épicerie
+      // 🍴 NOUVEAU : Ajouter automatiquement les ingrédients à la liste d'épicerie
       let ingredientsAdded = false;
       console.log("🍴 [API] Vérification pour ajout automatique des ingrédients:", {
         hasSpoonacularId: !!body.spoonacularId,
         spoonacularId: body.spoonacularId,
         hasDetailedCost: !!body.detailedCost,
+        hasUrl: !!body.url,
       });
       
       if (body.spoonacularId || body.detailedCost) {
+        // Cas 1: Recette Spoonacular (avec spoonacularId ou detailedCost)
         try {
           console.log("🍴 [API] Tentative d'ajout des ingrédients à la liste d'épicerie...");
           const addedCount = await addSpoonacularIngredientsToListeEpicerie(
@@ -281,8 +286,112 @@ export async function POST(req: Request) {
           console.error("❌ [API] Erreur lors de l'ajout des ingrédients à la liste d'épicerie:", ingredientError);
           // Ne pas faire échouer l'ajout de la recette si l'ajout des ingrédients échoue
         }
+      } else if (body.url) {
+        // Cas 2: Recette depuis favoris ou autre source - essayer d'extraire les ingrédients depuis l'URL
+        try {
+          console.log("🍴 [API] Tentative d'extraction des ingrédients depuis l'URL...");
+          const { calculateDetailedRecipeCost } = await import("../../../../lib/utils/detailedRecipeCost");
+          
+          // Récupérer le code postal pour les prix
+          const preferences = await prisma.preferences.findUnique({
+            where: { utilisateurId: utilisateur.id },
+          });
+          const postalCode = preferences?.codePostal || undefined;
+          
+          // Extraire les ingrédients depuis l'URL
+          console.log(`🔍 [API] Extraction des ingrédients depuis l'URL: ${body.url}`);
+          const detailedCostResult = await calculateDetailedRecipeCost(body.url, postalCode);
+          
+          if (detailedCostResult.ingredients && detailedCostResult.ingredients.length > 0) {
+            console.log(`✅ [API] ${detailedCostResult.ingredients.length} ingrédient(s) extrait(s) depuis l'URL`);
+            console.log(`📋 [API] Ingrédients extraits:`, detailedCostResult.ingredients.map((ing: any) => `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`).join(', '));
+            
+            // Convertir le format DetailedCostResult vers le format attendu par addSpoonacularIngredientsToListeEpicerie
+            // detailedCostResult.ingredients a: { name, quantity?: string, unit?: string, price, source }
+            // On doit convertir vers: { name, amount: number, unit: string }
+            const convertedDetailedCost = {
+              ingredients: detailedCostResult.ingredients.map((ing: any, index: number) => {
+                // Parser la quantité (peut être "2", "1/2", "500", etc.)
+                let amount = 1;
+                if (ing.quantity) {
+                  // Essayer de parser la quantité
+                  const quantityStr = ing.quantity.toString().trim();
+                  // Gérer les fractions simples (ex: "1/2" = 0.5)
+                  if (quantityStr.includes('/')) {
+                    const [num, den] = quantityStr.split('/').map(Number);
+                    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+                      amount = num / den;
+                    }
+                  } else {
+                    const parsed = parseFloat(quantityStr);
+                    if (!isNaN(parsed) && parsed > 0) {
+                      amount = parsed;
+                    }
+                  }
+                }
+                
+                // Nettoyer le nom de l'ingrédient (enlever les descriptions après virgule)
+                // Ex: "8 medium sized shrimp, deveined, shells removed" -> "shrimp"
+                let cleanName = ing.name;
+                
+                // Si le nom commence par un nombre, l'enlever (déjà dans quantity)
+                cleanName = cleanName.replace(/^\d+\s+/, '');
+                
+                // Enlever les descriptions après virgule
+                if (cleanName.includes(',')) {
+                  cleanName = cleanName.split(',')[0].trim();
+                }
+                
+                // Enlever les parenthèses et leur contenu
+                cleanName = cleanName.replace(/\([^)]*\)/g, '').trim();
+                
+                // Enlever les mots de description courants
+                const prepWords = ['medium', 'large', 'small', 'boneless', 'skinless', 'deveined', 'chopped', 'diced', 'sliced', 'minced', 'grated'];
+                const words = cleanName.split(/\s+/);
+                const filteredWords = words.filter((word: string) => {
+                  const lowerWord = word.toLowerCase();
+                  return !prepWords.includes(lowerWord) && 
+                         !lowerWord.match(/^(sized|removed|to|into|bite|size)$/);
+                });
+                cleanName = filteredWords.join(' ').trim();
+                
+                return {
+                  id: index, // Utiliser l'index comme ID
+                  name: cleanName || ing.name, // Utiliser le nom nettoyé ou l'original
+                  original: ing.name, // Garder l'original pour référence
+                  amount: amount,
+                  unit: ing.unit || "",
+                };
+              }),
+            };
+            
+            console.log(`🔍 [API] Format converti: ${convertedDetailedCost.ingredients.length} ingrédient(s) prêt(s) à être ajoutés`);
+            console.log(`📋 [API] Ingrédients convertis (avant traduction):`, convertedDetailedCost.ingredients.map((ing: any) => `${ing.amount} ${ing.unit || ''} ${ing.name} (original: ${ing.original})`).join(', '));
+            
+            // addSpoonacularIngredientsToListeEpicerie va traduire les ingrédients elle-même
+            // On passe les ingrédients en anglais/original
+            const addedCount = await addSpoonacularIngredientsToListeEpicerie(
+              utilisateur.id,
+              null,
+              convertedDetailedCost
+            );
+            ingredientsAdded = addedCount > 0;
+            console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
+          } else {
+            console.log("ℹ️ [API] Aucun ingrédient trouvé dans la recette (detailedCostResult.ingredients est vide ou undefined)");
+          }
+        } catch (ingredientError) {
+          const errorMessage = ingredientError instanceof Error ? ingredientError.message : String(ingredientError);
+          const errorStack = ingredientError instanceof Error ? ingredientError.stack : undefined;
+          console.error("❌ [API] Erreur lors de l'extraction des ingrédients depuis l'URL:", {
+            error: errorMessage,
+            stack: errorStack,
+            url: body.url,
+          });
+          // Ne pas faire échouer l'ajout de la recette si l'extraction échoue
+        }
       } else {
-        console.log("ℹ️ [API] Pas de spoonacularId ni detailedCost, pas d'ajout automatique d'ingrédients");
+        console.log("ℹ️ [API] Pas de spoonacularId, detailedCost ni URL, pas d'ajout automatique d'ingrédients");
       }
 
       return NextResponse.json<ApiResponse>(
@@ -444,24 +553,56 @@ async function addSpoonacularIngredientsToListeEpicerie(
   
   if (detailedCost && detailedCost.ingredients && Array.isArray(detailedCost.ingredients)) {
     console.log("✅ [API] Utilisation des ingrédients depuis detailedCost");
-    ingredients = detailedCost.ingredients.map((ing: any) => ({
-      name: ing.name,
-      amount: ing.amount || 1,
+    console.log(`📋 [API] Ingrédients reçus (raw):`, detailedCost.ingredients.map((ing: any) => `${ing.amount || ing.quantity || ''} ${ing.unit || ''} ${ing.name || ''} (original: ${ing.original || ''})`).join(', '));
+    
+    // Convertir les ingrédients du detailedCost en format SpoonacularIngredient
+    const spoonacularIngredients: SpoonacularIngredient[] = detailedCost.ingredients.map((ing: any, index: number) => ({
+      id: ing.id || index,
+      name: ing.name || "",
+      original: ing.original || ing.name || "",
+      amount: ing.amount || ing.quantity || 1,
       unit: ing.unit || "",
     }));
-    console.log(`✅ [API] ${ingredients.length} ingrédient(s) extrait(s) depuis detailedCost`);
+    
+    console.log(`📋 [API] Ingrédients convertis en format SpoonacularIngredient:`, spoonacularIngredients.map(ing => `${ing.amount} ${ing.unit} ${ing.name} (original: ${ing.original})`).join(', '));
+    
+    // Convertir en items de liste d'épicerie en français
+    const groceryItems = spoonacularIngredients.map(toGroceryItem);
+    
+    console.log(`📋 [API] Ingrédients traduits en français:`, groceryItems.map(item => `${item.quantity} ${item.unitFr} ${item.nameFr} (original EN: ${item.originalEn})`).join(', '));
+    
+    // Mapper vers le format attendu
+    ingredients = groceryItems.map(item => ({
+      name: item.nameFr,
+      amount: item.quantity,
+      unit: item.unitFr,
+    }));
+    console.log(`✅ [API] ${ingredients.length} ingrédient(s) traduit(s) et extrait(s) depuis detailedCost`);
   } else if (spoonacularId) {
     console.log(`✅ [API] Récupération des ingrédients depuis Spoonacular API pour la recette ${spoonacularId}`);
     try {
       // Récupérer les ingrédients depuis Spoonacular
       const recipeInfo = await getRecipeInformation(spoonacularId);
       console.log(`✅ [API] Informations récupérées: ${recipeInfo.extendedIngredients?.length || 0} ingrédient(s)`);
-      ingredients = recipeInfo.extendedIngredients.map(ing => ({
-        name: ing.name,
+      // Utiliser le nouveau module de traduction pour convertir les ingrédients Spoonacular
+      const spoonacularIngredients: SpoonacularIngredient[] = recipeInfo.extendedIngredients.map(ing => ({
+        id: ing.id || 0,
+        name: ing.name || "",
+        original: ing.original || "",
         amount: ing.amount || 1,
         unit: ing.unit || ing.unitShort || "",
       }));
-      console.log(`✅ [API] ${ingredients.length} ingrédient(s) mappé(s)`);
+      
+      // Convertir en items de liste d'épicerie en français
+      const groceryItems = spoonacularIngredients.map(toGroceryItem);
+      
+      // Mapper vers le format attendu
+      ingredients = groceryItems.map(item => ({
+        name: item.nameFr,
+        amount: item.quantity,
+        unit: item.unitFr,
+      }));
+      console.log(`✅ [API] ${ingredients.length} ingrédient(s) traduit(s) et mappé(s)`);
     } catch (error) {
       console.error("❌ [API] Erreur lors de la récupération des ingrédients depuis Spoonacular:", error);
       return 0;
@@ -501,13 +642,13 @@ async function addSpoonacularIngredientsToListeEpicerie(
     });
   }
 
-  // Traduire et filtrer les ingrédients (exclure ceux dans le garde-manger)
+  // Filtrer les ingrédients (exclure ceux dans le garde-manger)
+  // Note: Les ingrédients sont déjà traduits en français par toGroceryItem
   const ingredientsToAdd: Array<{ name: string; amount: number; unit: string }> = [];
   
   for (const ingredient of ingredients) {
-    // Traduire l'ingrédient anglais vers le français
-    const frenchName = translateIngredientToFrench(ingredient.name);
-    const normalizedIngredientName = normalizeIngredientName(frenchName);
+    // Les ingrédients sont déjà en français (nameFr), normaliser pour le matching
+    const normalizedIngredientName = normalizeIngredientName(ingredient.name);
     
     // Vérifier si l'ingrédient est dans le garde-manger
     let inPantry = false;
@@ -517,7 +658,7 @@ async function addSpoonacularIngredientsToListeEpicerie(
         // Pour simplifier, on assume qu'on a assez si la quantité > 0
         if (pantryItem.quantite > 0) {
           inPantry = true;
-          console.log(`✅ [API] "${frenchName}" est dans le garde-manger, ignoré`);
+          console.log(`✅ [API] "${ingredient.name}" est dans le garde-manger, ignoré`);
           break;
         }
       }
@@ -525,9 +666,9 @@ async function addSpoonacularIngredientsToListeEpicerie(
     
     if (!inPantry) {
       ingredientsToAdd.push({
-        name: frenchName,
+        name: ingredient.name, // Déjà en français
         amount: ingredient.amount,
-        unit: ingredient.unit,
+        unit: ingredient.unit, // Déjà traduit
       });
     }
   }

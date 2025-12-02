@@ -40,8 +40,14 @@ export default function ChercherRabais() {
       const response = await fetch("/api/flyers/search-deals");
       
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.message || "Erreur lors de la recherche");
+        if (response.status === 429) {
+          const errorData = await response.json().catch(() => ({}));
+          const retryAfter = errorData.retryAfter || 60;
+          toast.error(`Trop de requêtes. Réessayez dans ${retryAfter} secondes.`);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          toast.error(errorData.message || "Erreur lors de la recherche");
+        }
         return;
       }
 

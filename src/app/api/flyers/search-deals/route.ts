@@ -8,6 +8,9 @@ import { logger } from "../../../../../lib/utils/logger";
 import { withRateLimit, RateLimitConfigs, checkRateLimit } from "../../../../../lib/utils/rateLimit";
 import type { Preferences } from "@prisma/client";
 
+// Runtime explicite pour Vercel (appels Flipp API multiples)
+export const runtime = "nodejs";
+
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
 
 const GROCERY_KEYWORDS = [
@@ -236,8 +239,9 @@ export const GET = withRateLimit(
     
     // Fonction pour récupérer les items d'un flyer
     const fetchFlyerItems = async (flyer: any) => {
+      // Timeout à 8s pour laisser de la marge sur Vercel Hobby (10s max)
       const timeoutPromise = new Promise<{ items: any[]; error: string }>((resolve) =>
-        setTimeout(() => resolve({ items: [], error: "Timeout" }), 10000)
+        setTimeout(() => resolve({ items: [], error: "Timeout" }), 8000)
       );
       
       const { items: flyerItems, error } = await Promise.race([

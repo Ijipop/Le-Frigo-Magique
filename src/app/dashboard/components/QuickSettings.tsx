@@ -31,7 +31,7 @@ export default function QuickSettings() {
   const [generating, setGenerating] = useState(false);
   
   // États pour la génération de recettes
-  const [nbJours, setNbJours] = useState(7);
+  const [nbJours, setNbJours] = useState(1);
   const [nbDejeuners, setNbDejeuners] = useState(0);
   const [nbDiners, setNbDiners] = useState(0);
   const [nbSoupers, setNbSoupers] = useState(0);
@@ -553,6 +553,7 @@ export default function QuickSettings() {
               
               console.log("📤 [QuickSettings] Envoi de la recette:", {
                 titre: payload.titre,
+                url: payload.url,
                 spoonacularId: payload.spoonacularId,
                 hasDetailedCost: !!payload.detailedCost,
                 source: payload.source,
@@ -734,15 +735,18 @@ export default function QuickSettings() {
                                 : null;
                               const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
                               
-                              return hasServings ? (
+                              // cost est maintenant le coût TOTAL de la recette
+                              const costPerServing = hasServings ? (cost / servingsNum) : null;
+                              
+                              return (
                                 <>
-                                  ~{(cost / servingsNum).toFixed(2)}$/portion
-                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
-                                    ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
-                                  </span>
+                                  <span className="font-bold">~{cost.toFixed(2)}$</span>
+                                  {costPerServing !== null && (
+                                    <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                      ({costPerServing.toFixed(2)}$/portion • {servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                    </span>
+                                  )}
                                 </>
-                              ) : (
-                                <>~{cost.toFixed(2)}$</>
                               );
                             })()}
                           </span>

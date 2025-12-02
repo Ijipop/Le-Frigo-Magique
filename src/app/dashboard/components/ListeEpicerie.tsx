@@ -106,6 +106,20 @@ export default function ListeEpicerie() {
     };
   }, []);
 
+  // Écouter les événements de mise à jour du garde-manger
+  useEffect(() => {
+    const handleGardeMangerUpdate = () => {
+      // Rafraîchir la liste d'épicerie quand un item est ajouté au garde-manger
+      // (les items correspondants ont été supprimés automatiquement par l'API)
+      fetchListe();
+    };
+    
+    window.addEventListener("garde-manger-updated", handleGardeMangerUpdate);
+    return () => {
+      window.removeEventListener("garde-manger-updated", handleGardeMangerUpdate);
+    };
+  }, []);
+
   const fetchListe = async () => {
     try {
       setLoading(true);
@@ -294,6 +308,14 @@ export default function ListeEpicerie() {
         } else {
           setDealsResults(null);
         }
+      } else if (response.status === 429) {
+        // Rate limit exceeded
+        const errorData = await response.json().catch(() => ({}));
+        const retryAfter = errorData.retryAfter || 60;
+        console.warn(`Rate limit atteint. Réessayez dans ${retryAfter} secondes.`);
+        // Ne pas afficher d'erreur à l'utilisateur, juste garder les résultats précédents
+      } else {
+        console.error("Erreur lors du chargement des rabais:", response.status, response.statusText);
       }
     } catch (error) {
       console.error("Erreur lors du chargement des rabais:", error);
@@ -382,34 +404,58 @@ export default function ListeEpicerie() {
     if (!liste) return { total: 0, totalAvecRabais: 0, economie: 0 };
     
     let total = 0; // Total estimé (prix estimé × quantité pour chaque item)
-    let totalAvecRabais = 0; // Total avec rabais (meilleur prix unitaire × quantité pour chaque item)
+    let totalAvecRabais = 0; // Total avec rabais
     let economie = 0; // Économie totale réalisée
     
     liste.lignes.forEach((ligne) => {
       const quantite = ligne.quantite || 1;
-      const prixUnitaireEstime = ligne.prixEstime || 0;
+      let prixUnitaireEstime = ligne.prixEstime;
+      
+      // Si pas de prix estimé, essayer d'utiliser le meilleur deal comme estimation
+      // Mais attention: le prix du deal est pour un produit complet, pas pour la quantité nécessaire
+      if (prixUnitaireEstime === null || prixUnitaireEstime === 0) {
+        const meilleurDeal = getBestDealForIngredient(ligne.nom);
+        if (meilleurDeal.price !== null) {
+          // Le prix du deal est pour un produit complet. On doit l'estimer pour la quantité nécessaire.
+          // Estimation conservatrice: on assume qu'un produit complet couvre environ 4-6 portions
+          // On utilise donc le prix du deal divisé par un facteur (ex: 5) comme estimation unitaire
+          const facteurEstimation = 5; // Un produit complet = ~5 portions
+          prixUnitaireEstime = meilleurDeal.price / facteurEstimation;
+        } else {
+          // Pas de deal non plus, utiliser un prix par défaut basé sur le type d'ingrédient
+          prixUnitaireEstime = 2.00; // Prix par défaut conservateur
+        }
+      }
       
       // Calculer le prix total estimé pour cette ligne (prix unitaire estimé × quantité)
+      // Ceci est utilisé pour le "total" (prix original estimé)
       const prixTotalEstime = prixUnitaireEstime * quantite;
       total += prixTotalEstime;
       
-      // Chercher le meilleur prix en rabais pour cet ingrédient (meilleur deal de toutes les épiceries)
-      const meilleurPrixUnitaire = getBestPriceForIngredient(ligne.nom);
+      // 🎯 IMPORTANT: Pour le total avec rabais, utiliser le prix du PRODUIT COMPLET (deal)
+      // Le prix des deals est pour un produit complet (paquet/unité), pas pour la quantité nécessaire.
+      // Exemple: Si on a besoin de 2 gousses d'ail et qu'un paquet d'ail (5-6 gousses) coûte 3.99$,
+      // on n'a besoin que d'UN paquet = 3.99$, pas de multiplier par 2.
+      const meilleurDeal = getBestDealForIngredient(ligne.nom);
       
-      if (meilleurPrixUnitaire !== null) {
-        // Multiplier le meilleur prix unitaire par la quantité demandée dans la liste
-        // Exemple: si meilleur prix = 4.98$ et quantité = 8, alors prixTotalRabais = 4.98 × 8 = 39.84$
-        const prixTotalRabais = meilleurPrixUnitaire * quantite;
-        totalAvecRabais += prixTotalRabais;
-        
-        // Calculer l'économie pour cet ingrédient (si on a un prix estimé)
-        if (prixUnitaireEstime > 0 && prixUnitaireEstime > meilleurPrixUnitaire) {
-          const economieLigne = (prixUnitaireEstime - meilleurPrixUnitaire) * quantite;
+      if (meilleurDeal.price !== null) {
+        // Utiliser le prix du produit complet (pas multiplié par la quantité)
+        // Car un produit complet couvre généralement plusieurs portions/unités
+        totalAvecRabais += meilleurDeal.price;
+      } else {
+        // Si pas de deal, utiliser le prix estimé (qui est déjà calculé pour la quantité)
+        totalAvecRabais += prixTotalEstime;
+      }
+      
+      // Calculer l'économie si on a un prix estimé et un deal
+      if (prixUnitaireEstime > 0 && meilleurDeal.price !== null) {
+        // Estimation: on assume qu'un produit complet couvre plusieurs portions
+        // L'économie est approximative car on ne connaît pas la taille exacte du produit
+        const prixEstimeProduitComplet = prixUnitaireEstime * 5; // Estimation: 5 portions par produit
+        if (meilleurDeal.price < prixEstimeProduitComplet) {
+          const economieLigne = prixEstimeProduitComplet - meilleurDeal.price;
           economie += economieLigne;
         }
-      } else {
-        // Si pas de rabais trouvé, utiliser le prix estimé total
-        totalAvecRabais += prixTotalEstime;
       }
     });
     
@@ -485,7 +531,7 @@ export default function ListeEpicerie() {
                   {totalAvecRabais.toFixed(2)}$
                 </span>
               </div>
-              {hasDeals && total > 0 && (
+              {hasDeals && total > 0 && total > totalAvecRabais && (
                 <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
                   <span>Prix original:</span>
                   <span className="line-through">{total.toFixed(2)}$</span>
@@ -494,7 +540,7 @@ export default function ListeEpicerie() {
             </div>
             
             {/* Économie totale - Box verte */}
-            {hasDeals && economie > 0 && (
+            {hasDeals && economie > 0.01 && (
               <div className="p-5 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-800/40 dark:to-green-900/30 rounded-xl border-2 border-green-400 dark:border-green-600 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -514,9 +560,9 @@ export default function ListeEpicerie() {
                     <span className="text-3xl font-extrabold text-green-700 dark:text-green-300">
                       -{economie.toFixed(2)}$
                     </span>
-                    {total > 0 && (
+                    {total > 0 && total > totalAvecRabais && (
                       <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                        sur {total.toFixed(2)}$ d'économies
+                        sur {total.toFixed(2)}$ de prix original
                       </span>
                     )}
                   </div>
@@ -593,21 +639,21 @@ export default function ListeEpicerie() {
                   }`}
                 >
                   {/* En-tête cliquable */}
-                  <div className="w-full flex items-center justify-between p-3">
-                    <div
-                      onClick={() => {
-                        setExpandedItems(prev => {
-                          const newSet = new Set(prev);
-                          if (newSet.has(ligne.id)) {
-                            newSet.delete(ligne.id);
-                          } else {
-                            newSet.add(ligne.id);
-                          }
-                          return newSet;
-                        });
-                      }}
-                      className="flex-1 min-w-0 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors rounded-lg p-2 -m-2"
-                    >
+                  <div 
+                    onClick={() => {
+                      setExpandedItems(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(ligne.id)) {
+                          newSet.delete(ligne.id);
+                        } else {
+                          newSet.add(ligne.id);
+                        }
+                        return newSet;
+                      });
+                    }}
+                    className="w-full flex items-center justify-between p-3 cursor-pointer group relative overflow-hidden rounded-lg transition-all duration-200 hover:bg-gradient-to-r hover:from-orange-50/80 hover:to-amber-50/80 dark:hover:from-orange-900/30 dark:hover:to-amber-900/20"
+                  >
+                    <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {ligne.nom}
@@ -629,18 +675,16 @@ export default function ListeEpicerie() {
                           <div className="flex items-center gap-2">
                             {deal.originalPrice && (
                               <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
-                                {quantite > 1 ? `${(deal.originalPrice * quantite).toFixed(2)}$` : `${deal.originalPrice.toFixed(2)}$`}
+                                {deal.originalPrice.toFixed(2)}$
                               </span>
                             )}
                             <div className="flex flex-col items-end">
                               <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
                                 <DollarSign className="w-3 h-3" />
                                 {deal.price.toFixed(2)}$
-                                {quantite > 1 && (
-                                  <span className="text-xs font-normal text-gray-500">
-                                    × {quantite} = {prixTotalRabais!.toFixed(2)}$
-                                  </span>
-                                )}
+                                <span className="text-xs font-normal text-gray-500">
+                                  (prix du produit)
+                                </span>
                               </span>
                               {deal.merchant && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 italic">
@@ -662,13 +706,14 @@ export default function ListeEpicerie() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative z-10">
                       {hasDeal && allDeals.length > 0 && (
                         <motion.div
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={{ duration: 0.2 }}
                           className="cursor-pointer"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setExpandedItems(prev => {
                               const newSet = new Set(prev);
                               if (newSet.has(ligne.id)) {
@@ -680,7 +725,7 @@ export default function ListeEpicerie() {
                             });
                           }}
                         >
-                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0 group-hover:text-orange-500 transition-colors" />
                         </motion.div>
                       )}
                       <button

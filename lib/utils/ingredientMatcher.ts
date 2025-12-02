@@ -79,14 +79,61 @@ export function matchIngredients(
       return false;
     }
     
-    // Vérifier que le mot recherché apparaît comme un MOT COMPLET dans l'item
-    // Utiliser des limites de mots (word boundaries) pour éviter les matches partiels
+    // 🎯 RÈGLE STRICTE POUR MOTS SIMPLES :
+    // Pour un mot simple (ex: "mais"), on accepte seulement :
+    // 1. Le produit est exactement ce mot (ex: "mais" === "mais")
+    // 2. Le produit commence par ce mot suivi d'un espace (ex: "mais en conserve" ✅, mais "mais soufflé" ❌)
+    // 3. Le produit est ce mot seul (sans autres mots significatifs)
+    
+    // Cas 1: Match exact
+    if (normalized1 === normalized2) {
+      return true;
+    }
+    
+    // Cas 2: Le produit commence par le mot recherché suivi d'un espace
+    // Ex: "mais" → "mais en conserve" ✅ mais PAS "mais soufflé" ❌
+    if (normalized2.startsWith(searchWord + ' ')) {
+      const afterWord = normalized2.substring(searchWord.length + 1).trim();
+      
+      // Vérifier les exclusions spécifiques AVANT d'accepter
+      // Exclusions pour "mais" / "maïs" : exclure "mais soufflé", "popcorn", etc.
+      if (searchWord === 'mais' || searchWord === 'mais' || searchWord === 'corn') {
+        const excludedPatterns = ['souffle', 'soufflé', 'popcorn', 'pop corn', 'eclate', 'éclaté', 'orville'];
+        if (excludedPatterns.some(pattern => afterWord.includes(pattern))) {
+          return false; // Produit transformé (popcorn), pas du maïs simple
+        }
+      }
+      
+      // Exclusions pour "sucre" : exclure "sucre à glacer", "sucre brun", "cassonade", etc.
+      if (searchWord === 'sucre' || searchWord === 'sugar') {
+        const excludedPatterns = ['a glacer', 'à glacer', 'glacer', 'glace', 'glacee', 'icing',
+                                  'brun', 'brown', 'cassonade', 'demerara', 'turbinado',
+                                  'de canne', 'cane', 'de coco', 'coconut'];
+        if (excludedPatterns.some(pattern => afterWord.includes(pattern))) {
+          return false; // Type spécifique de sucre, pas du sucre simple
+        }
+      }
+      
+      // Liste générale de mots qui indiquent un produit transformé/composé à exclure
+      const transformationWords = ['souffle', 'soufflé', 'popcorn', 'eclate', 'éclaté', 
+                                   'cuit', 'grille', 'grillé', 'frit', 'frite', 'seche', 'séché',
+                                   'moulu', 'hache', 'haché', 'mixte', 'prepare', 'préparé'];
+      
+      // Si le mot suivant indique une transformation, exclure
+      const nextWord = afterWord.split(/\s+/)[0];
+      if (transformationWords.includes(nextWord)) {
+        return false; // Produit transformé, pas l'ingrédient simple
+      }
+      
+      return true; // ✅ Le produit commence par le mot recherché et n'est pas transformé
+    }
+    
+    // Cas 3: Le produit contient le mot mais il faut vérifier qu'il n'est pas dans un composé
     const wordBoundaryRegex = new RegExp(`\\b${searchWord}\\b`, 'i');
     const hasExactWord = wordBoundaryRegex.test(normalized2);
     
     if (hasExactWord) {
       // Vérifier que le produit ne contient PAS uniquement des mots d'emballage
-      // Si le produit ne contient que des mots d'emballage et pas l'ingrédient réel, c'est un faux positif
       const productWords = normalized2.split(/\s+/).filter(w => w.length >= 2 && !stopWords.includes(w));
       const productWordsOnly = productWords.filter(w => !packagingWords.includes(w));
       
@@ -95,12 +142,18 @@ export function matchIngredients(
         return false;
       }
       
-      // Vérifier que l'ingrédient recherché est vraiment présent (pas juste un mot d'emballage)
-      const hasRealIngredient = productWordsOnly.some(w => w === searchWord || w.includes(searchWord) || searchWord.includes(w));
-      if (!hasRealIngredient) {
-        return false;
+      // Pour un mot simple, être TRÈS strict : le produit doit être exactement ce mot
+      // OU le produit doit commencer par ce mot (pas le contenir au milieu)
+      if (productWordsOnly.length > 1) {
+        // Si le produit a plusieurs mots, vérifier que le mot recherché est le PREMIER mot
+        if (productWordsOnly[0] !== searchWord) {
+          return false; // Le mot recherché n'est pas le premier mot, c'est probablement un composé
+        }
+      } else if (productWordsOnly[0] !== searchWord) {
+        return false; // Le seul mot du produit n'est pas exactement le mot recherché
       }
-      // ✅ Le mot est présent comme mot complet
+      
+      // ✅ Le mot est présent comme mot complet et est le premier mot ou le seul mot
       // MAIS vérifier les exclusions spécifiques pour éviter les faux positifs
       
       // Exclusions pour "crème" : exclure "crème sure", "crémeux", "crème glacée", etc.
@@ -144,6 +197,44 @@ export function matchIngredients(
         const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
         if (isExcluded && !normalized2.startsWith('beurre') && !normalized2.startsWith('butter')) {
           return false; // Exclure les beurres de noix sauf si "beurre" est le premier mot
+        }
+      }
+      
+      // Exclusions pour "sucre" : exclure "sucre à glacer", "cassonade", "boissons zéro sucre", etc.
+      if (searchWord === 'sucre' || searchWord === 'sugar') {
+        // Exclure les boissons (même si "sucre" est présent, ce n'est pas du sucre)
+        const drinkKeywords = ['boissons', 'boisson', 'drink', 'drinks', 'minute maid', 'coca cola', 'pepsi', 'soda', 'soft drink', 'beverage'];
+        if (drinkKeywords.some(keyword => normalized2.includes(keyword))) {
+          return false; // C'est une boisson, pas du sucre
+        }
+        
+        const excludedPatterns = [
+          'sucre a glacer', 'sucre à glacer', 'icing sugar', 'sucre glace', 'sucre glacee',
+          'cassonade', 'brown sugar', 'sucre brun',
+          'zero sugar', 'zero sucre', 'sans sucre', 'sugar free',
+          'sucre dans', 'sugar in', 'avec sucre', 'with sugar',
+          'sucre de canne', 'cane sugar', 'sucre de coco', 'coconut sugar',
+          'sucre demerara', 'demerara sugar', 'sucre turbinado', 'turbinado sugar'
+        ];
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded) {
+          // Accepter seulement si "sucre" est le premier mot ET que ce n'est pas un type spécifique exclu
+          // Ex: "sucre blanc" ✅ mais "sucre à glacer" ❌
+          if (normalized2.startsWith('sucre a glacer') || normalized2.startsWith('sucre à glacer') || 
+              normalized2.startsWith('icing sugar') || normalized2.startsWith('cassonade') ||
+              normalized2.startsWith('brown sugar')) {
+            return false; // Exclure les types spécifiques de sucre
+          }
+        }
+      }
+      
+      // Exclusions pour "mais" / "maïs" : exclure "mais soufflé", "popcorn", etc.
+      if (searchWord === 'mais' || searchWord === 'mais' || searchWord === 'corn') {
+        const excludedPatterns = ['mais souffle', 'mais soufflé', 'popcorn', 'pop corn', 'mais eclate', 'mais éclaté',
+                                  'mais souffle', 'orville', 'mais en conserve', 'corn souffle', 'corn soufflé'];
+        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+        if (isExcluded) {
+          return false; // Exclure les produits transformés à base de maïs
         }
       }
       
