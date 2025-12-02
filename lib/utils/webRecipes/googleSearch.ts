@@ -48,10 +48,11 @@ export async function performGoogleSearch(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(`Erreur Google API: ${response.status}`, {
-        error: errorText,
-        query,
-      });
+      logger.error(
+        `Erreur Google API: ${response.status}`,
+        new Error(errorText),
+        { query }
+      );
       return [];
     }
 
@@ -115,10 +116,11 @@ export async function performGoogleSearch(
       logger.warn("Timeout lors de la recherche Google", { query });
       return [];
     }
-    logger.error("Erreur lors de la recherche Google", {
-      error: error instanceof Error ? error.message : String(error),
-      query,
-    });
+    logger.error(
+      "Erreur lors de la recherche Google",
+      error instanceof Error ? error : new Error(String(error)),
+      { query }
+    );
     return [];
   }
 }
