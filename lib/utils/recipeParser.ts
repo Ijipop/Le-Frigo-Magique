@@ -143,6 +143,11 @@ function extractIngredientsFromHTML(
   url: string
 ): Array<{ name: string; quantity?: string; unit?: string }> {
   const ingredients: Array<{ name: string; quantity?: string; unit?: string }> = [];
+  
+  logger.info("🔍 [RecipeParser] Extraction des ingrédients depuis HTML", {
+    url,
+    htmlLength: html.length,
+  });
 
   // Stratégie 1 : Schema.org Recipe (format structuré légal)
   // Les sites qui utilisent Schema.org donnent explicitement leur consentement
@@ -180,9 +185,10 @@ function extractIngredientsFromHTML(
               
               // Si on a trouvé des ingrédients via Schema.org, on s'arrête là (plus légal)
               if (ingredients.length > 0) {
-                logger.info("Ingrédients extraits via Schema.org (format structuré légal)", {
+                logger.info("✅ [RecipeParser] Ingrédients extraits via Schema.org (format structuré légal)", {
                   url,
                   count: ingredients.length,
+                  ingredients: ingredients.map(ing => `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`),
                 });
                 return ingredients;
               }
@@ -218,8 +224,23 @@ function extractIngredientsFromHTML(
     }
     
     if (ingredients.length > 0) {
+      logger.info("✅ [RecipeParser] Ingrédients extraits via sélecteurs CSS", {
+        url,
+        count: ingredients.length,
+        ingredients: ingredients.map(ing => `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`),
+      });
       break; // On a trouvé des ingrédients, on s'arrête
     }
+  }
+
+  if (ingredients.length === 0) {
+    logger.warn("⚠️ [RecipeParser] Aucun ingrédient trouvé dans le HTML", { url });
+  } else {
+    logger.info("✅ [RecipeParser] Ingrédients finaux extraits", {
+      url,
+      count: ingredients.length,
+      ingredients: ingredients.map(ing => `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`),
+    });
   }
 
   return ingredients;

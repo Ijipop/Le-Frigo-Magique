@@ -257,8 +257,21 @@ export function translateUnit(unit: string): string {
 // 🎯 Fonction principale : transforme un ingrédient Spoonacular
 // en item de liste d'épicerie en français.
 export function toGroceryItem(ing: SpoonacularIngredient): GroceryItem {
-  const nameFr = translateIngredientName(ing.name || ing.original);
+  const originalName = ing.name || ing.original || "";
+  const nameFr = translateIngredientName(originalName);
   const unitFr = translateUnit(ing.unit);
+  
+  // Log pour debug (seulement si mozzarella ou naan)
+  if (originalName.toLowerCase().includes("mozzarella") || originalName.toLowerCase().includes("naan") || 
+      nameFr.toLowerCase().includes("mozzarella") || nameFr.toLowerCase().includes("naan")) {
+    console.log(`🔍 [TranslateToFr] TRADUCTION DÉTECTÉE:`, {
+      originalName,
+      nameFr,
+      unitFr,
+      amount: ing.amount,
+      id: ing.id,
+    });
+  }
   
   return {
     id: ing.id,
