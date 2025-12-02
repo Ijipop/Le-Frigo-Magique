@@ -482,15 +482,18 @@ export default function RecettesSemaine() {
                                 : null;
                               const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
                               
-                              return hasServings ? (
+                              // estimatedCost est maintenant le coût TOTAL de la recette
+                              const costPerServing = hasServings ? (recette.estimatedCost / servingsNum) : null;
+                              
+                              return (
                                 <>
-                                  ~{(recette.estimatedCost / servingsNum).toFixed(2)}$ CAD/portion
-                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
-                                    ({servingsNum} portion{servingsNum > 1 ? "s" : ""})
-                                  </span>
+                                  <span className="font-bold">~{recette.estimatedCost.toFixed(2)}$ CAD</span>
+                                  {costPerServing !== null && (
+                                    <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                      ({costPerServing.toFixed(2)}$/portion • {servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                    </span>
+                                  )}
                                 </>
-                              ) : (
-                                <>~{recette.estimatedCost.toFixed(2)}$ CAD</>
                               );
                             })()}
                           </span>

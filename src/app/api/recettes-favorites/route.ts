@@ -7,7 +7,7 @@ import { withRateLimit, RateLimitConfigs } from "../../../../lib/utils/rateLimit
 
 // GET - Récupérer toutes les recettes favorites de l'utilisateur
 export const GET = withRateLimit(
-  RateLimitConfigs.SEARCH,
+  RateLimitConfigs.AUTHENTICATED, // Moins restrictif car appelé fréquemment
   async () => {
     const { userId } = await auth();
 
@@ -60,7 +60,7 @@ export const GET = withRateLimit(
 
 // POST - Ajouter une recette aux favoris
 export const POST = withRateLimit(
-  RateLimitConfigs.SEARCH,
+  RateLimitConfigs.AUTHENTICATED, // Moins restrictif car appelé fréquemment
   async (req: Request) => {
     const { userId } = await auth();
 
@@ -155,7 +155,7 @@ export const POST = withRateLimit(
 
 // DELETE - Retirer une recette des favoris
 export const DELETE = withRateLimit(
-  RateLimitConfigs.SEARCH,
+  RateLimitConfigs.AUTHENTICATED, // Moins restrictif car appelé fréquemment
   async (req: Request) => {
     const { userId } = await auth();
 

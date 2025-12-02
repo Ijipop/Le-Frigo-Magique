@@ -130,6 +130,37 @@ const INGREDIENT_TRANSLATIONS: Record<string, string> = {
   'smoked paprika': 'paprika fumé',
   'cumin': 'cumin',
   'curry powder': 'poudre de cari',
+  // Fruits de mer
+  'shrimp': 'crevettes',
+  'shrimps': 'crevettes',
+  'prawn': 'crevette',
+  'prawns': 'crevettes',
+  // Légumes supplémentaires
+  'bean sprouts': 'pousses de soja',
+  'bean sprout': 'pousse de soja',
+  'spring onion': 'oignon vert',
+  'spring onions': 'oignons verts',
+  'scallion': 'oignon vert',
+  'scallions': 'oignons verts',
+  // Pâtes et nouilles
+  'vermicelli': 'vermicelles',
+  'rice noodles': 'nouilles de riz',
+  'rice noodle': 'nouille de riz',
+  // Épices et sauces
+  'sambal oelek': 'sambal oelek',
+  'sambal': 'sambal',
+  'white pepper': 'poivre blanc',
+  'flavoured white pepper': 'poivre blanc aromatisé',
+  'flavored white pepper': 'poivre blanc aromatisé',
+  // Autres
+  'water': 'eau',
+  'boneless chicken breast': 'poitrine de poulet désossée',
+  'boneless chicken breasts': 'poitrines de poulet désossées',
+  'chicken breast meat': 'viande de poitrine de poulet',
+  'corn oil': 'huile de maïs',
+  'corn': 'maïs',
+  'naan': 'naan',
+  'bread': 'pain',
 };
 
 // 🧪 Unités : anglais -> français (version simple)
@@ -187,13 +218,32 @@ export function normalizeIngredientName(raw: string): string {
 
 // 🗣 Traduit le nom en français, avec fallback au nom original si inconnu
 export function translateIngredientName(raw: string): string {
-  const normalized = normalizeIngredientName(raw);
+  if (!raw || raw.trim().length === 0) {
+    return raw;
+  }
   
-  return (
-    INGREDIENT_TRANSLATIONS[normalized] ??
-    INGREDIENT_TRANSLATIONS[raw.toLowerCase().trim()] ??
-    raw // fallback : on garde l'original
-  );
+  const normalized = normalizeIngredientName(raw);
+  const rawLower = raw.toLowerCase().trim();
+  
+  // Essayer d'abord avec le nom normalisé
+  if (INGREDIENT_TRANSLATIONS[normalized]) {
+    return INGREDIENT_TRANSLATIONS[normalized];
+  }
+  
+  // Essayer avec le nom original en minuscules
+  if (INGREDIENT_TRANSLATIONS[rawLower]) {
+    return INGREDIENT_TRANSLATIONS[rawLower];
+  }
+  
+  // Essayer de trouver une correspondance partielle (ex: "shrimp" dans "medium sized shrimp")
+  for (const [english, french] of Object.entries(INGREDIENT_TRANSLATIONS)) {
+    if (normalized.includes(english) || rawLower.includes(english)) {
+      return french;
+    }
+  }
+  
+  // Fallback : garder l'original
+  return raw;
 }
 
 // 📏 Traduit l'unité en français (ou garde l'original si inconnue)

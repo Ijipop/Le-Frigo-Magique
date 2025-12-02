@@ -8,6 +8,9 @@ import { logger } from "../../../../../lib/utils/logger";
 import { withRateLimit, RateLimitConfigs, checkRateLimit } from "../../../../../lib/utils/rateLimit";
 import type { Preferences } from "@prisma/client";
 
+// Runtime explicite pour Vercel (appels Flipp API multiples)
+export const runtime = "nodejs";
+
 const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
 
 const GROCERY_KEYWORDS = [

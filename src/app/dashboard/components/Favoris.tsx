@@ -78,7 +78,15 @@ export default function Favoris() {
       });
 
       if (response.ok) {
-        toast.success(`"${favorite.titre}" ajoutée aux recettes de la semaine !`);
+        const result = await response.json();
+        const hasIngredients = result.data?.ingredientsAdded || false;
+        
+        if (hasIngredients) {
+          toast.success(`"${favorite.titre}" ajoutée aux recettes de la semaine ! Les ingrédients ont été ajoutés à votre liste d'épicerie.`);
+          window.dispatchEvent(new CustomEvent("liste-epicerie-updated"));
+        } else {
+          toast.success(`"${favorite.titre}" ajoutée aux recettes de la semaine !`);
+        }
         window.dispatchEvent(new CustomEvent("recettes-semaine-updated"));
       } else {
         const error = await response.json();
