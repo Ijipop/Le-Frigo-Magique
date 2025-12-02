@@ -629,10 +629,13 @@ export const GET = withRateLimit(
 
     // 3️⃣ — Enrichir le cache (fusion avec les résultats existants)
     // Note: On ne cache pas les coûts car ils peuvent changer, mais on garde les portions
-    const itemsForCache = items.map(({ estimatedCost, ingredients, ...item }) => ({
-      ...item,
-      servings: item.servings,
-    }));
+    const itemsForCache = items.map((item: any) => {
+      const { estimatedCost, ingredients, ...rest } = item;
+      return {
+        ...rest,
+        servings: item.servings,
+      };
+    });
     if (itemsForCache.length > 0) {
       await enrichCache(cacheKey, itemsForCache, true);
     }
