@@ -348,7 +348,7 @@ export async function POST(req: Request) {
                 // Enlever les mots de description courants
                 const prepWords = ['medium', 'large', 'small', 'boneless', 'skinless', 'deveined', 'chopped', 'diced', 'sliced', 'minced', 'grated'];
                 const words = cleanName.split(/\s+/);
-                const filteredWords = words.filter(word => {
+                const filteredWords = words.filter((word: string) => {
                   const lowerWord = word.toLowerCase();
                   return !prepWords.includes(lowerWord) && 
                          !lowerWord.match(/^(sized|removed|to|into|bite|size)$/);
