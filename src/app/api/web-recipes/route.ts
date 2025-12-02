@@ -7,7 +7,7 @@ import { logger } from "../../../../lib/utils/logger";
 import { searchByBudgetOnly } from "../../../../lib/utils/webRecipes/searchBudget";
 import { performGoogleSearch } from "../../../../lib/utils/webRecipes/googleSearch";
 import { isListPage, filterByDomain, filterByValidationTerms, FILTER_VALIDATION_TERMS } from "../../../../lib/utils/webRecipes/filters";
-import { estimateRecipeCostAndServings, filterAndSelectByBudget } from "../../../../lib/utils/webRecipes/costEstimation";
+import { estimateRecipeCostAndServings, filterAndSelectByBudget, type RecipeWithCost } from "../../../../lib/utils/webRecipes/costEstimation";
 import { checkCache, enrichCache } from "../../../../lib/utils/webRecipes/cacheManager";
 
 // Runtime explicite pour Vercel (opérations longues avec Google API + Spoonacular)
@@ -562,7 +562,7 @@ export const GET = withRateLimit(
         
         const isDessert = dessertKeywords.some(keyword => textToCheck.includes(keyword));
         if (isDessert) {
-          console.log(`🚫 [API] Recette "${item.title}" exclue (dessert détecté pour recherche souper)`);
+          console.log(`🚫 [API] Recette "${item.title || 'Sans titre'}" exclue (dessert détecté pour recherche souper)`);
           return false;
         }
         return true;
@@ -593,7 +593,7 @@ export const GET = withRateLimit(
 
     // Garder jusqu'à 30 recettes pour avoir plus de choix (augmenté de 20 à 30)
     // Si on a peu de résultats après filtrage, on garde tout ce qu'on a
-    let items = filteredItems.length >= 10 
+    const itemsBeforeCost: any[] = filteredItems.length >= 10 
       ? filteredItems.slice(0, 30) 
       : filteredItems; // Garder toutes les recettes si on en a moins de 10
 
@@ -602,17 +602,17 @@ export const GET = withRateLimit(
     
     logger.info("Estimation rapide des coûts des recettes", {
       budget,
-      nombreRecettes: items.length,
+      nombreRecettes: itemsBeforeCost.length,
       method: process.env.OPENAI_API_KEY ? "gpt" : "rules",
     });
 
     // Estimer les coûts en parallèle (batch pour performance)
-    const itemsWithCost = await Promise.all(
-      items.map(item => estimateRecipeCostAndServings(item))
+    const itemsWithCost: RecipeWithCost[] = await Promise.all(
+      itemsBeforeCost.map(item => estimateRecipeCostAndServings(item))
     );
 
     // Filtrer par budget si nécessaire, puis sélectionner aléatoirement
-    items = filterAndSelectByBudget(itemsWithCost, budget);
+    const items: RecipeWithCost[] = filterAndSelectByBudget(itemsWithCost, budget);
     
     if (budget && budget > 0) {
       logger.info("Recettes filtrées par budget et sélectionnées aléatoirement", {
@@ -629,8 +629,8 @@ export const GET = withRateLimit(
 
     // 3️⃣ — Enrichir le cache (fusion avec les résultats existants)
     // Note: On ne cache pas les coûts car ils peuvent changer, mais on garde les portions
-    const itemsForCache = items.map((item: any) => {
-      const { estimatedCost, ingredients, ...rest } = item;
+    const itemsForCache = items.map((item: RecipeWithCost) => {
+      const { estimatedCost, costSource, ...rest } = item;
       return {
         ...rest,
         servings: item.servings,
@@ -642,16 +642,17 @@ export const GET = withRateLimit(
 
     // Log pour vérifier que les prix et portions sont bien inclus
     if (items.length > 0) {
+      const firstItem = items[0];
       console.log("💰 [API] Exemple de recette avec prix et portions:", {
-        title: items[0].title,
-        estimatedCost: items[0].estimatedCost,
-        hasCost: items[0].estimatedCost !== null && items[0].estimatedCost !== undefined,
-        servings: items[0].servings,
-        hasServings: items[0].servings !== null && items[0].servings !== undefined && items[0].servings > 0
+        title: firstItem.title,
+        estimatedCost: firstItem.estimatedCost,
+        hasCost: firstItem.estimatedCost !== null && firstItem.estimatedCost !== undefined,
+        servings: firstItem.servings,
+        hasServings: firstItem.servings !== null && firstItem.servings !== undefined && firstItem.servings > 0
       });
       
       // Log pour toutes les recettes qui ont des portions
-      const withServings = items.filter((item: any) => item.servings && item.servings > 0);
+      const withServings = items.filter((item) => item.servings && item.servings > 0);
       console.log(`📊 [API] ${withServings.length}/${items.length} recette(s) avec portions détectées`);
     }
     
