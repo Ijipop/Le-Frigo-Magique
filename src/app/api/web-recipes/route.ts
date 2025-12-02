@@ -520,7 +520,7 @@ export const GET = withRateLimit(
       
       // CORRECTION : Filtrer filteredByDomain, pas allItems !
       filteredItems = filteredByDomain.filter(item => {
-        const titleLower = item.title.toLowerCase();
+        const titleLower = (item.title || "").toLowerCase();
         const snippetLower = (item.snippet || "").toLowerCase();
         const textToSearch = `${titleLower} ${snippetLower}`;
         
