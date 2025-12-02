@@ -588,7 +588,7 @@ async function addSpoonacularIngredientsToListeEpicerie(
       const spoonacularIngredients: SpoonacularIngredient[] = recipeInfo.extendedIngredients.map(ing => ({
         id: ing.id || 0,
         name: ing.name || "",
-        original: ing.original || ing.originalString || "",
+        original: ing.original || "",
         amount: ing.amount || 1,
         unit: ing.unit || ing.unitShort || "",
       }));
