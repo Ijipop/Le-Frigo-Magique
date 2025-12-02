@@ -15,6 +15,7 @@ interface RecetteSemaine {
   snippet: string | null;
   source: string | null;
   estimatedCost: number | null;
+  coutReel: number | null; // Coût réel calculé depuis les ingrédients liés
   servings: number | null;
   createdAt: string;
 }
@@ -32,6 +33,8 @@ export default function RecettesSemaine() {
   const [favoriteRecipes, setFavoriteRecipes] = useState<Set<string>>(new Set());
   const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set());
   const [budgetHebdomadaire, setBudgetHebdomadaire] = useState<number | null>(null);
+  const [sousTotalEpicerie, setSousTotalEpicerie] = useState<number | null>(null);
+  const [dynamicEpicerieTotal, setDynamicEpicerieTotal] = useState<number | null>(null);
 
   // Charger le budget de l'utilisateur
   const fetchBudget = async () => {
@@ -48,20 +51,78 @@ export default function RecettesSemaine() {
     }
   };
 
+  // Charger le sous-total estimé de la liste d'épicerie
+  const fetchSousTotalEpicerie = async () => {
+    try {
+      const response = await fetch("/api/liste-epicerie");
+      if (response.ok) {
+        const result = await response.json();
+        const liste = result.data;
+        if (liste && liste.lignes) {
+          // Calculer le sous-total estimé (similaire à calculerTotal dans ListeEpicerie)
+          let totalAvecRabais = 0;
+          liste.lignes.forEach((ligne: any) => {
+            const quantite = ligne.quantite || 1;
+            let prixUnitaireEstime = ligne.prixEstime;
+            
+            // Si pas de prix estimé, utiliser une estimation par défaut
+            if (prixUnitaireEstime === null || prixUnitaireEstime === 0) {
+              prixUnitaireEstime = 2.00; // Prix par défaut conservateur
+            }
+            
+            // Pour le sous-total estimé, utiliser le prix estimé × quantité
+            // (on n'a pas accès aux deals ici, donc on utilise l'estimation)
+            totalAvecRabais += prixUnitaireEstime * quantite;
+          });
+          setSousTotalEpicerie(totalAvecRabais);
+        } else {
+          setSousTotalEpicerie(0);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement du sous-total:", error);
+      setSousTotalEpicerie(null);
+    }
+  };
+
   // Charger les recettes au montage et écouter les mises à jour
   useEffect(() => {
     fetchRecettes();
     loadExistingFavorites();
     fetchBudget();
+    fetchSousTotalEpicerie();
     
     // Écouter les événements de mise à jour
     const handleUpdate = () => {
       fetchRecettes();
+      fetchSousTotalEpicerie(); // Recalculer le sous-total quand les recettes changent
     };
     
     window.addEventListener("recettes-semaine-updated", handleUpdate);
+    window.addEventListener("liste-epicerie-updated", handleUpdate); // Écouter aussi les mises à jour de la liste
+    
+    // Écouter les mises à jour du total dynamique de l'épicerie
+    const handleEpicerieTotalUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      // Accepter soit { detail: { total } } soit { detail: number }
+      const total = customEvent.detail?.total !== undefined 
+        ? customEvent.detail.total 
+        : typeof customEvent.detail === 'number' 
+        ? customEvent.detail 
+        : null;
+      
+      if (total !== null && total !== undefined) {
+        console.log("💰 [RecettesSemaine] Total épicerie mis à jour:", total);
+        setDynamicEpicerieTotal(total);
+      }
+    };
+    
+    window.addEventListener("epicerie-total-updated", handleEpicerieTotalUpdate);
+    
     return () => {
       window.removeEventListener("recettes-semaine-updated", handleUpdate);
+      window.removeEventListener("liste-epicerie-updated", handleUpdate);
+      window.removeEventListener("epicerie-total-updated", handleEpicerieTotalUpdate);
     };
   }, []);
 
@@ -277,20 +338,33 @@ export default function RecettesSemaine() {
           className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4"
         >
           {(() => {
-            // Calculer le budget total utilisé
-            // estimatedCost représente le coût TOTAL de chaque recette (pas le prix par portion)
-            // On additionne donc directement les coûts totaux pour obtenir le budget utilisé
-            const budgetUtilise = recettes.reduce((total, recette) => {
-              const cost = recette.estimatedCost;
-              if (cost !== null && cost !== undefined && cost > 0) {
-                return total + cost;
+            // 🎯 PRIORITÉ: Utiliser le sous-total dynamique de l'épicerie (si épiceries sélectionnées)
+            // C'est le prix réel que l'épicerie va coûter basé sur les épiceries sélectionnées
+            // Sinon, utiliser le sous-total estimé de la liste d'épicerie
+            // En dernier recours, utiliser les coûts estimés des recettes
+            const budgetUtilise = (() => {
+              // Si des épiceries sont sélectionnées, utiliser le total dynamique
+              if (dynamicEpicerieTotal !== null && dynamicEpicerieTotal > 0) {
+                return dynamicEpicerieTotal;
               }
-              return total;
-            }, 0);
+              // Sinon, utiliser le sous-total estimé de la liste d'épicerie
+              if (sousTotalEpicerie !== null && sousTotalEpicerie > 0) {
+                return sousTotalEpicerie;
+              }
+              // En dernier recours, utiliser les coûts estimés des recettes
+              return recettes.reduce((total, recette) => {
+                const cost = recette.coutReel !== null && recette.coutReel !== undefined 
+                  ? recette.coutReel 
+                  : recette.estimatedCost;
+                if (cost !== null && cost !== undefined && cost > 0) {
+                  return total + cost;
+                }
+                return total;
+              }, 0);
+            })();
             
-            // Budget hebdomadaire proportionnel (pour 7 jours)
-            // On assume que les recettes sont pour la semaine complète
-            const budgetTotal = budgetHebdomadaire;
+            // Budget hebdomadaire
+            const budgetTotal = budgetHebdomadaire || 0;
             const budgetRestant = budgetTotal - budgetUtilise;
             const pourcentageUtilise = budgetTotal > 0 ? (budgetUtilise / budgetTotal) * 100 : 0;
             
@@ -473,35 +547,41 @@ export default function RecettesSemaine() {
                             </span>
                           ) : null;
                         })()}
-                        {recette.estimatedCost !== null && recette.estimatedCost !== undefined && recette.estimatedCost > 0 ? (
-                          <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
-                            {(() => {
-                              // Vérifier servings de manière robuste
-                              const servingsNum = recette.servings 
-                                ? (typeof recette.servings === 'number' ? recette.servings : parseInt(String(recette.servings), 10))
-                                : null;
-                              const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
-                              
-                              // estimatedCost est maintenant le coût TOTAL de la recette
-                              const costPerServing = hasServings ? (recette.estimatedCost / servingsNum) : null;
-                              
-                              return (
-                                <>
-                                  <span className="font-bold">~{recette.estimatedCost.toFixed(2)}$ CAD</span>
-                                  {costPerServing !== null && servingsNum !== null && (
-                                    <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
-                                      ({costPerServing.toFixed(2)}$/portion • {servingsNum} portion{servingsNum > 1 ? "s" : ""})
-                                    </span>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                            Prix non disponible
-                          </span>
-                        )}
+                        {(() => {
+                          // 🎯 NOUVEAU: Utiliser coutReel si disponible (coût réel depuis les ingrédients liés)
+                          // Sinon, utiliser estimatedCost comme fallback
+                          const cost = recette.coutReel !== null && recette.coutReel !== undefined && recette.coutReel > 0
+                            ? recette.coutReel
+                            : recette.estimatedCost;
+                          
+                          if (cost !== null && cost !== undefined && cost > 0) {
+                            // Vérifier servings de manière robuste
+                            const servingsNum = recette.servings 
+                              ? (typeof recette.servings === 'number' ? recette.servings : parseInt(String(recette.servings), 10))
+                              : null;
+                            const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
+                            
+                            // cost est le coût TOTAL de la recette (coutReel ou estimatedCost)
+                            const costPerServing = hasServings && servingsNum !== null ? (cost / servingsNum) : null;
+                            
+                            return (
+                              <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">
+                                <span className="font-bold">~{cost.toFixed(2)}$ CAD</span>
+                                {costPerServing !== null && servingsNum !== null && (
+                                  <span className="text-yellow-500 dark:text-yellow-400 ml-1 text-xs font-normal">
+                                    ({costPerServing.toFixed(2)}$/portion • {servingsNum} portion{servingsNum > 1 ? "s" : ""})
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                Prix non disponible
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
                       <div className="flex items-center gap-2">
                         <motion.button

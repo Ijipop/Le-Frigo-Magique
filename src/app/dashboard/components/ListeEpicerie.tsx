@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown, Trash } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown, Trash, Store, List } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
 import { matchIngredients } from "../../../../lib/utils/ingredientMatcher";
+import AccordionEpiceries from "./AccordionEpiceries";
 
 interface LigneListe {
   id: string;
@@ -57,6 +58,51 @@ export default function ListeEpicerie() {
   const [dealsResults, setDealsResults] = useState<{ results: FlyerResult[] } | null>(null);
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set());
+  const [dynamicTotal, setDynamicTotal] = useState<number | null>(null);
+  const [isListExpanded, setIsListExpanded] = useState<boolean>(true); // État pour l'accordéon de la liste
+
+  // Charger les épiceries sélectionnées depuis localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("selectedMerchants");
+    if (saved) {
+      try {
+        const merchants = JSON.parse(saved);
+        setSelectedMerchants(new Set(merchants));
+      } catch (e) {
+        console.error("Erreur lors du chargement des épiceries sélectionnées:", e);
+      }
+    }
+  }, []);
+
+  // Sauvegarder les épiceries sélectionnées dans localStorage
+  useEffect(() => {
+    if (selectedMerchants.size > 0) {
+      localStorage.setItem("selectedMerchants", JSON.stringify(Array.from(selectedMerchants)));
+    } else {
+      localStorage.removeItem("selectedMerchants");
+    }
+  }, [selectedMerchants]);
+
+  // Toggle la sélection d'une épicerie
+  const handleMerchantToggle = (merchant: string) => {
+    setSelectedMerchants((prev) => {
+      const next = new Set(prev);
+      if (next.has(merchant)) {
+        next.delete(merchant);
+      } else {
+        next.add(merchant);
+      }
+      return next;
+    });
+  };
+
+  // Gérer le changement de total dynamique
+  const handleTotalChange = (total: number) => {
+    setDynamicTotal(total);
+    // Dispatcher un événement pour mettre à jour le budget dans RecettesSemaine
+    window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total } }));
+  };
 
   const [formData, setFormData] = useState({
     nom: "",
@@ -314,11 +360,27 @@ export default function ListeEpicerie() {
         const retryAfter = errorData.retryAfter || 60;
         console.warn(`Rate limit atteint. Réessayez dans ${retryAfter} secondes.`);
         // Ne pas afficher d'erreur à l'utilisateur, juste garder les résultats précédents
+      } else if (response.status === 400) {
+        // Erreur 400 : code postal non configuré ou liste vide
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.error || "Erreur lors du chargement des rabais";
+        
+        // Ne pas afficher d'erreur si c'est juste que le code postal n'est pas configuré ou la liste est vide
+        // Ce sont des cas normaux, pas des erreurs critiques
+        if (errorMessage.includes("Code postal non configuré") || errorMessage.includes("Liste d'épicerie vide")) {
+          console.log("ℹ️ [ListeEpicerie] Rabais non disponibles:", errorMessage);
+          setDealsResults(null);
+        } else {
+          console.warn("⚠️ [ListeEpicerie] Erreur lors du chargement des rabais:", errorMessage);
+        }
       } else {
-        console.error("Erreur lors du chargement des rabais:", response.status, response.statusText);
+        // Autre erreur (500, etc.)
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || errorData.error || response.statusText;
+        console.error("❌ [ListeEpicerie] Erreur lors du chargement des rabais:", response.status, errorMessage);
       }
     } catch (error) {
-      console.error("Erreur lors du chargement des rabais:", error);
+      console.error("❌ [ListeEpicerie] Erreur lors du chargement des rabais:", error);
     } finally {
       setLoadingDeals(false);
     }
@@ -472,136 +534,152 @@ export default function ListeEpicerie() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-orange-500" />
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            Liste d'épicerie
-          </h2>
-          {liste && liste.lignes.length > 0 && (
-            <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
-              ({liste.lignes.length} {liste.lignes.length > 1 ? "items" : "item"})
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {liste && liste.lignes.length > 0 && (
-            <Button
-              onClick={() => setDeleteAllModal(true)}
-              variant="danger"
-              size="sm"
-            >
-              <Trash className="w-4 h-4 mr-1" />
-              Tout supprimer
-            </Button>
-          )}
-          <Button
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            variant="primary"
-            size="sm"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Ajouter
-          </Button>
-        </div>
-      </div>
-
-      {liste && liste.lignes.length > 0 && (() => {
-        const { total, totalAvecRabais, economie } = calculerTotal();
-        const hasDeals = dealsResults && dealsResults.results.length > 0;
-        
-        return (
-          <div className="mb-4 space-y-2">
-            {/* Sous-total avec rabais */}
-            <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  {hasDeals ? "Sous-total avec rabais" : "Sous-total estimé"}
+    <div className="space-y-4">
+      {/* 🛒 CONTENEUR 1: Liste d'épicerie */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <List className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                Liste d'épicerie
+              </h2>
+              {liste && liste.lignes.length > 0 && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">
+                  {liste.lignes.length} {liste.lignes.length > 1 ? "items" : "item"}
                 </span>
-                <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {totalAvecRabais.toFixed(2)}$
-                </span>
-              </div>
-              {hasDeals && total > 0 && total > totalAvecRabais && (
-                <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>Prix original:</span>
-                  <span className="line-through">{total.toFixed(2)}$</span>
-                </div>
               )}
             </div>
-            
-            {/* Économie totale - Box verte */}
-            {hasDeals && economie > 0.01 && (
-              <div className="p-5 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-800/40 dark:to-green-900/30 rounded-xl border-2 border-green-400 dark:border-green-600 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-500 dark:bg-green-600 rounded-lg">
-                      <Tag className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-base font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
-                        Total des économies
-                      </span>
-                      <span className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
-                        En achetant les meilleurs deals disponibles
-                      </span>
-                    </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {liste && liste.lignes.length > 0 && (
+              <Button
+                onClick={() => setDeleteAllModal(true)}
+                variant="danger"
+                size="sm"
+              >
+                <Trash className="w-4 h-4 mr-1" />
+                Tout supprimer
+              </Button>
+            )}
+            <Button
+              onClick={() => {
+                resetForm();
+                setShowForm(true);
+              }}
+              variant="primary"
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Ajouter
+            </Button>
+          </div>
+        </div>
+
+        {liste && liste.lignes.length > 0 && (() => {
+          const { total, totalAvecRabais, economie } = calculerTotal();
+          const hasDeals = dealsResults && dealsResults.results.length > 0;
+          
+          // Utiliser le total dynamique si des épiceries sont sélectionnées, sinon utiliser le total avec rabais
+          const displayTotal = dynamicTotal !== null && selectedMerchants.size > 0 
+            ? dynamicTotal 
+            : totalAvecRabais;
+          
+          return (
+            <div className="mb-4 space-y-2">
+              {/* Sous-total avec rabais */}
+              <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                    {selectedMerchants.size > 0 
+                      ? `Sous-total (${selectedMerchants.size} épicerie${selectedMerchants.size > 1 ? "s" : ""})`
+                      : hasDeals 
+                      ? "Sous-total avec rabais" 
+                      : "Sous-total estimé"}
+                  </span>
+                  <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                    {displayTotal.toFixed(2)}$
+                  </span>
+                </div>
+                {hasDeals && total > 0 && total > displayTotal && (
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>Prix original:</span>
+                    <span className="line-through">{total.toFixed(2)}$</span>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-3xl font-extrabold text-green-700 dark:text-green-300">
-                      -{economie.toFixed(2)}$
-                    </span>
-                    {total > 0 && total > totalAvecRabais && (
-                      <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                        sur {total.toFixed(2)}$ de prix original
+                )}
+              </div>
+              
+              {/* Économie totale - Box verte */}
+              {hasDeals && economie > 0.01 && (
+                <div className="p-5 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-800/40 dark:to-green-900/30 rounded-xl border-2 border-green-400 dark:border-green-600 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-500 dark:bg-green-600 rounded-lg">
+                        <Tag className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-base font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
+                          Total des économies
+                        </span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                          En achetant les meilleurs deals disponibles
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-3xl font-extrabold text-green-700 dark:text-green-300">
+                        -{economie.toFixed(2)}$
                       </span>
-                    )}
+                      {total > 0 && total > totalAvecRabais && (
+                        <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                          sur {total.toFixed(2)}$ de prix original
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {loadingDeals && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                <Sparkles className="w-4 h-4 inline-block mr-1 animate-pulse" />
-                Recherche de rabais en cours...
-              </div>
             )}
           </div>
         );
       })()}
 
-      <AnimatePresence>
-        {liste && liste.lignes.length === 0 ? (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-center text-gray-600 dark:text-gray-300 py-8"
-          >
-            Votre liste d'épicerie est vide.
-            <br />
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Cliquez sur "Ajouter" pour commencer.
-            </span>
-          </motion.p>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="space-y-2 max-h-[400px] overflow-y-auto pr-2"
-          >
-            {liste?.lignes.map((ligne, index) => {
+        {/* Menu accordéon pour la liste d'items */}
+        {liste && liste.lignes.length > 0 && (
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+            <button
+              onClick={() => setIsListExpanded(!isListExpanded)}
+              className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-900 dark:text-white">
+                  Items de la liste ({liste.lignes.length})
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-5 h-5 text-gray-400 transition-transform ${
+                  isListExpanded ? "transform rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {isListExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4 space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                    {liste?.lignes.map((ligne, index) => {
               const deal = getBestDealForIngredient(ligne.nom);
               const hasDeal = deal.price !== null;
               const quantite = ligne.quantite || 1;
@@ -792,12 +870,15 @@ export default function ListeEpicerie() {
                       )}
                     </AnimatePresence>
                   )}
+                    </motion.div>
+                  );
+                })}
+                  </div>
                 </motion.div>
-              );
-            })}
-          </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Formulaire d'ajout/modification */}
       {showForm && (
@@ -930,7 +1011,35 @@ export default function ListeEpicerie() {
           </span>
         </p>
       </Modal>
-    </motion.div>
+        </motion.div>
+
+      {/* 🏪 CONTENEUR 2: Épiceries avec rabais */}
+      {liste && liste.lignes.length > 0 && dealsResults && dealsResults.results.length > 0 && !loadingDeals && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <Store className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Épiceries avec rabais
+            </h2>
+          </div>
+
+          <AccordionEpiceries
+            dealsResults={dealsResults}
+            listeItems={liste.lignes}
+            selectedMerchants={selectedMerchants}
+            onMerchantToggle={handleMerchantToggle}
+            onTotalChange={handleTotalChange}
+          />
+        </motion.div>
+      )}
+    </div>
   );
 }
 

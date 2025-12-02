@@ -54,11 +54,40 @@ export async function GET() {
     const recettes = await prisma.recetteSemaine.findMany({
       where: { utilisateurId: utilisateur.id },
       orderBy: { createdAt: "desc" },
+      include: {
+        ligneListes: {
+          select: {
+            prixEstime: true,
+            quantite: true,
+          },
+        },
+      },
     });
     console.log(`✅ [API GET] ${recettes.length} recette(s) trouvée(s)`);
 
+    // Calculer le coût réel pour chaque recette basé sur les ingrédients liés
+    const recettesAvecCoutReel = recettes.map(recette => {
+      // Calculer le coût réel depuis les ingrédients liés
+      const coutReel = recette.ligneListes.reduce((total, ligne) => {
+        // Si prixEstime existe, l'utiliser (c'est déjà le prix total pour la quantité)
+        if (ligne.prixEstime !== null && ligne.prixEstime !== undefined && ligne.prixEstime > 0) {
+          return total + ligne.prixEstime;
+        }
+        // Si pas de prix estimé, utiliser une estimation basée sur la quantité
+        // Estimation conservatrice : 2$ par unité si pas de prix
+        const quantite = ligne.quantite || 1;
+        return total + (2.0 * quantite);
+      }, 0);
+
+      return {
+        ...recette,
+        coutReel: coutReel > 0 ? coutReel : null, // null si aucun ingrédient lié ou coût = 0
+        ligneListes: undefined, // Ne pas exposer les lignes dans la réponse
+      };
+    });
+
     return NextResponse.json<ApiResponse>({
-      data: recettes,
+      data: recettesAvecCoutReel,
     });
   } catch (error) {
     console.error("❌ [API GET] ERREUR lors de la récupération des recettes:");
@@ -336,7 +365,8 @@ export async function POST(req: Request) {
           const addedCount = await addSpoonacularIngredientsToListeEpicerie(
             utilisateur.id,
             finalSpoonacularIdForIngredients || null,
-            body.detailedCost
+            body.detailedCost,
+            recette.id // Passer l'ID de la recette créée pour lier les ingrédients
           );
           ingredientsAdded = addedCount > 0;
           console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
@@ -447,7 +477,8 @@ export async function POST(req: Request) {
             const addedCount = await addSpoonacularIngredientsToListeEpicerie(
               utilisateur.id,
               null,
-              convertedDetailedCost
+              convertedDetailedCost,
+              recette.id // Passer l'ID de la recette créée pour lier les ingrédients
             );
             ingredientsAdded = addedCount > 0;
             console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
@@ -613,7 +644,8 @@ export async function DELETE(req: Request) {
 async function addSpoonacularIngredientsToListeEpicerie(
   utilisateurId: string,
   spoonacularId?: number | null,
-  detailedCost?: any
+  detailedCost?: any,
+  recetteSemaineId?: string | null
 ): Promise<number> {
   console.log("🍴 [API] Ajout automatique des ingrédients Spoonacular à la liste d'épicerie");
   console.log("🍴 [API] Paramètres reçus:", {
@@ -772,6 +804,7 @@ async function addSpoonacularIngredientsToListeEpicerie(
       await prisma.ligneListe.create({
         data: {
           listeId: liste.id,
+          recetteSemaineId: recetteSemaineId || null, // Lier à la recette si fourni
           nom: ingredient.name,
           quantite: ingredient.amount,
           unite: ingredient.unit || null,

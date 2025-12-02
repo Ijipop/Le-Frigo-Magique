@@ -102,15 +102,17 @@ model ListeEpicerie {
 }
 
 model LigneListe {
-  id         String        @id @default(cuid())
-  listeId    String
-  itemId     String?
-  nom        String
-  quantite   Float
-  unite      String?
-  prixEstime Float?
-  item       Item?         @relation(fields: [itemId], references: [id])
-  liste      ListeEpicerie @relation(fields: [listeId], references: [id])
+  id               String          @id @default(cuid())
+  listeId          String
+  itemId           String?
+  recetteSemaineId String? // Lier l'ingrédient à une recette de la semaine
+  nom              String
+  quantite         Float
+  unite            String?
+  prixEstime       Float?
+  item             Item?           @relation(fields: [itemId], references: [id])
+  liste            ListeEpicerie   @relation(fields: [listeId], references: [id])
+  recetteSemaine   RecetteSemaine? @relation(fields: [recetteSemaineId], references: [id])
 }
 
 model Item {
@@ -150,15 +152,15 @@ model SpoonacularRecipeCache {
 }
 
 model SpoonacularSearchCache {
-  id            Int      @id @default(autoincrement())
-  cacheKey      String   @unique // Clé unique basée sur les paramètres de recherche
-  maxPrice      Float    // Budget maximum (pour recherche par plage)
-  typeRepas     String?  // Type de repas (pour recherche partielle)
-  allergies     String   // Allergies sérialisées (pour recherche partielle)
-  maxResults    Int      // Nombre de résultats demandés
-  resultsJson   Json     // Résultats de la recherche (liste de recettes)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  cacheKey    String   @unique // Clé unique basée sur les paramètres de recherche
+  maxPrice    Float // Budget maximum (pour recherche par plage)
+  typeRepas   String? // Type de repas (pour recherche partielle)
+  allergies   String // Allergies sérialisées (pour recherche partielle)
+  maxResults  Int // Nombre de résultats demandés
+  resultsJson Json // Résultats de la recherche (liste de recettes)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([maxPrice])
   @@index([typeRepas])
@@ -166,19 +168,20 @@ model SpoonacularSearchCache {
 }
 
 model RecetteSemaine {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   utilisateurId String
   titre         String
   url           String
   image         String?
   snippet       String?
   source        String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   estimatedCost Float?
   servings      Int?
   spoonacularId Int?
-  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  utilisateur   Utilisateur  @relation(fields: [utilisateurId], references: [id])
+  ligneListes   LigneListe[]
 
   @@index([utilisateurId])
   @@index([spoonacularId])
