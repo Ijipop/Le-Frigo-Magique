@@ -639,21 +639,21 @@ export default function ListeEpicerie() {
                   }`}
                 >
                   {/* En-tête cliquable */}
-                  <div className="w-full flex items-center justify-between p-3">
-                    <div
-                      onClick={() => {
-                        setExpandedItems(prev => {
-                          const newSet = new Set(prev);
-                          if (newSet.has(ligne.id)) {
-                            newSet.delete(ligne.id);
-                          } else {
-                            newSet.add(ligne.id);
-                          }
-                          return newSet;
-                        });
-                      }}
-                      className="flex-1 min-w-0 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors rounded-lg p-2 -m-2"
-                    >
+                  <div 
+                    onClick={() => {
+                      setExpandedItems(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(ligne.id)) {
+                          newSet.delete(ligne.id);
+                        } else {
+                          newSet.add(ligne.id);
+                        }
+                        return newSet;
+                      });
+                    }}
+                    className="w-full flex items-center justify-between p-3 cursor-pointer group relative overflow-hidden rounded-lg transition-all duration-200 hover:bg-gradient-to-r hover:from-orange-50/80 hover:to-amber-50/80 dark:hover:from-orange-900/30 dark:hover:to-amber-900/20"
+                  >
+                    <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {ligne.nom}
@@ -706,13 +706,14 @@ export default function ListeEpicerie() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative z-10">
                       {hasDeal && allDeals.length > 0 && (
                         <motion.div
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={{ duration: 0.2 }}
                           className="cursor-pointer"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setExpandedItems(prev => {
                               const newSet = new Set(prev);
                               if (newSet.has(ligne.id)) {
@@ -724,7 +725,7 @@ export default function ListeEpicerie() {
                             });
                           }}
                         >
-                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                          <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0 group-hover:text-orange-500 transition-colors" />
                         </motion.div>
                       )}
                       <button
