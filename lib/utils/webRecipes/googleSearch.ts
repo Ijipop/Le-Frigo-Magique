@@ -48,11 +48,8 @@ export async function performGoogleSearch(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
-        `Erreur Google API: ${response.status}`,
-        new Error(errorText),
-        { query }
-      );
+      const error = new Error(errorText);
+      logger.error(`Erreur Google API: ${response.status}`, error, { query });
       return [];
     }
 
