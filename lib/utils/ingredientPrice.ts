@@ -11,7 +11,7 @@ const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
  */
 export interface IngredientPrice {
   prix: number;
-  source: "cache" | "flipp" | "fallback";
+  source: "cache" | "flipp" | "fallback" | "government";
   categorie?: string;
 }
 
