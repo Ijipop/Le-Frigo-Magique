@@ -17,6 +17,10 @@ model Utilisateur {
   updatedAt               DateTime                @updatedAt
   jourSemaineBudget       Int?
   typeRepasBudget         String?
+  // Stripe
+  stripeCustomerId        String?                 @unique // null = jamais passé par Stripe
+  stripeSubId             String?                 @unique // null = pas d'abo actif Stripe
+  stripePriceId           String?                 // optionnel, pour savoir quel plan
   gardeManger             ArticleGardeManger[]
   listesEpicerie          ListeEpicerie[]
   preferences             Preferences?
@@ -35,8 +39,12 @@ model Preferences {
   cuisinesFavorites String?
   alimentsPreferes  String?
   codePostal        String?
+  // Premium (legacy - à migrer progressivement)
   isPremium         Boolean     @default(false)
   premiumUntil      DateTime?
+  // Lifetime Premium
+  isLifetimePremium Boolean     @default(false)
+  premiumSince      DateTime?   // Date d'activation du premium (lifetime ou Stripe)
   utilisateur       Utilisateur @relation(fields: [utilisateurId], references: [id])
 }
 
