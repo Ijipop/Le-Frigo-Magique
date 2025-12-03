@@ -805,29 +805,88 @@ async function addSpoonacularIngredientsToListeEpicerie(
 
   console.log(`🍴 [API] Ajout de ${ingredientsToAdd.length} ingrédient(s) à la liste d'épicerie`);
 
-  // Ajouter les ingrédients à la liste d'épicerie
+  // Récupérer les lignes existantes de la liste d'épicerie pour éviter les doublons
+  const existingLines = await prisma.ligneListe.findMany({
+    where: { listeId: liste.id },
+  });
+
+  console.log(`📋 [API] ${existingLines.length} ligne(s) existante(s) dans la liste d'épicerie`);
+
+  // Normaliser les lignes existantes pour la comparaison
+  const normalizedExistingLines = existingLines.map(line => ({
+    ...line,
+    normalizedName: normalizeIngredientName(line.nom),
+  }));
+
+  // Ajouter ou mettre à jour les ingrédients dans la liste d'épicerie
   let addedCount = 0;
+  let updatedCount = 0;
+  
   for (const ingredient of ingredientsToAdd) {
     try {
-      await prisma.ligneListe.create({
-        data: {
-          listeId: liste.id,
-          recetteSemaineId: recetteSemaineId || null, // Lier à la recette si fourni
-          nom: ingredient.name,
-          quantite: ingredient.amount,
-          unite: ingredient.unit || null,
-          prixEstime: null, // Le prix sera calculé plus tard si nécessaire
-        },
-      });
-      console.log(`✅ [API] "${ingredient.name}" ajouté à la liste d'épicerie`);
-      addedCount++;
+      const normalizedIngredientName = normalizeIngredientName(ingredient.name);
+      
+      // Chercher si l'ingrédient existe déjà (même nom normalisé)
+      const existingLine = normalizedExistingLines.find(line => 
+        matchIngredients(normalizedIngredientName, line.normalizedName)
+      );
+
+      if (existingLine) {
+        // L'ingrédient existe déjà : mettre à jour la quantité
+        // Si les unités sont compatibles, additionner les quantités
+        const canMerge = !existingLine.unite || !ingredient.unit || 
+                        existingLine.unite === ingredient.unit ||
+                        (existingLine.unite.toLowerCase() === ingredient.unit.toLowerCase());
+        
+        if (canMerge) {
+          const newQuantity = existingLine.quantite + ingredient.amount;
+          await prisma.ligneListe.update({
+            where: { id: existingLine.id },
+            data: {
+              quantite: newQuantity,
+              // Si l'unité était vide, la remplir
+              unite: existingLine.unite || ingredient.unit || null,
+            },
+          });
+          console.log(`🔄 [API] "${ingredient.name}" mis à jour : ${existingLine.quantite} + ${ingredient.amount} = ${newQuantity} ${existingLine.unite || ingredient.unit || ''}`);
+          updatedCount++;
+        } else {
+          // Unités incompatibles : créer une nouvelle ligne
+          await prisma.ligneListe.create({
+            data: {
+              listeId: liste.id,
+              recetteSemaineId: recetteSemaineId || null,
+              nom: ingredient.name,
+              quantite: ingredient.amount,
+              unite: ingredient.unit || null,
+              prixEstime: null,
+            },
+          });
+          console.log(`✅ [API] "${ingredient.name}" ajouté (unité différente: ${ingredient.unit} vs ${existingLine.unite})`);
+          addedCount++;
+        }
+      } else {
+        // L'ingrédient n'existe pas : créer une nouvelle ligne
+        await prisma.ligneListe.create({
+          data: {
+            listeId: liste.id,
+            recetteSemaineId: recetteSemaineId || null,
+            nom: ingredient.name,
+            quantite: ingredient.amount,
+            unite: ingredient.unit || null,
+            prixEstime: null,
+          },
+        });
+        console.log(`✅ [API] "${ingredient.name}" ajouté à la liste d'épicerie`);
+        addedCount++;
+      }
     } catch (error) {
       console.warn(`⚠️ [API] Erreur lors de l'ajout de "${ingredient.name}":`, error);
       // Continuer avec les autres ingrédients même si un échoue
     }
   }
 
-  console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s) à la liste d'épicerie`);
-  return addedCount;
+  console.log(`✅ [API] ${addedCount} ingrédient(s) ajouté(s), ${updatedCount} ingrédient(s) mis à jour dans la liste d'épicerie`);
+  return addedCount + updatedCount;
 }
 

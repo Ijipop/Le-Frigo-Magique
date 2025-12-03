@@ -70,9 +70,10 @@ export default function RecettesSemaine() {
               prixUnitaireEstime = 2.00; // Prix par défaut conservateur
             }
             
-            // Pour le sous-total estimé, utiliser le prix estimé × quantité
+            // Pour le sous-total estimé, utiliser le prix estimé du paquet/unité
+            // Le prix estimé est déjà le prix du paquet, pas besoin de multiplier par la quantité
             // (on n'a pas accès aux deals ici, donc on utilise l'estimation)
-            totalAvecRabais += prixUnitaireEstime * quantite;
+            totalAvecRabais += prixUnitaireEstime;
           });
           setSousTotalEpicerie(totalAvecRabais);
         } else {

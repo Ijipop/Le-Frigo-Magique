@@ -4,6 +4,7 @@ import { prisma } from "../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../lib/utils/user";
 import { createLigneListeSchema } from "../../../../lib/validations/liste-epicerie";
 import type { ApiResponse } from "../../../../lib/types/api";
+import { normalizeIngredientName, matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 
 // GET - Récupérer la liste d'épicerie active de l'utilisateur
 export async function GET() {
@@ -163,20 +164,77 @@ export async function POST(req: Request) {
       });
     }
 
-    // Créer la ligne de liste
-    const ligne = await prisma.ligneListe.create({
-      data: {
-        listeId: liste.id,
-        nom: validationResult.data.nom,
-        quantite: validationResult.data.quantite,
-        unite: validationResult.data.unite || null,
-        prixEstime: validationResult.data.prixEstime || null,
-      },
+    // Récupérer les lignes existantes pour éviter les doublons
+    const existingLines = await prisma.ligneListe.findMany({
+      where: { listeId: liste.id },
     });
 
+    // Normaliser les lignes existantes pour la comparaison
+    const normalizedExistingLines = existingLines.map(line => ({
+      ...line,
+      normalizedName: normalizeIngredientName(line.nom),
+    }));
+
+    const normalizedNewName = normalizeIngredientName(validationResult.data.nom);
+    
+    // Chercher si l'ingrédient existe déjà (même nom normalisé)
+    const existingLine = normalizedExistingLines.find(line => 
+      matchIngredients(normalizedNewName, line.normalizedName)
+    );
+
+    let ligne;
+    let message: string;
+
+    if (existingLine) {
+      // L'ingrédient existe déjà : mettre à jour la quantité
+      // Si les unités sont compatibles, additionner les quantités
+      const canMerge = !existingLine.unite || !validationResult.data.unite || 
+                      existingLine.unite === validationResult.data.unite ||
+                      (existingLine.unite.toLowerCase() === validationResult.data.unite?.toLowerCase());
+      
+      if (canMerge) {
+        const newQuantity = existingLine.quantite + validationResult.data.quantite;
+        ligne = await prisma.ligneListe.update({
+          where: { id: existingLine.id },
+          data: {
+            quantite: newQuantity,
+            // Si l'unité était vide, la remplir
+            unite: existingLine.unite || validationResult.data.unite || null,
+            // Mettre à jour le prix estimé si fourni
+            prixEstime: validationResult.data.prixEstime || existingLine.prixEstime || null,
+          },
+        });
+        message = `Quantité mise à jour : ${existingLine.quantite} + ${validationResult.data.quantite} = ${newQuantity} ${existingLine.unite || validationResult.data.unite || ''}`;
+      } else {
+        // Unités incompatibles : créer une nouvelle ligne
+        ligne = await prisma.ligneListe.create({
+          data: {
+            listeId: liste.id,
+            nom: validationResult.data.nom,
+            quantite: validationResult.data.quantite,
+            unite: validationResult.data.unite || null,
+            prixEstime: validationResult.data.prixEstime || null,
+          },
+        });
+        message = `Item ajouté (unité différente: ${validationResult.data.unite} vs ${existingLine.unite})`;
+      }
+    } else {
+      // L'ingrédient n'existe pas : créer une nouvelle ligne
+      ligne = await prisma.ligneListe.create({
+        data: {
+          listeId: liste.id,
+          nom: validationResult.data.nom,
+          quantite: validationResult.data.quantite,
+          unite: validationResult.data.unite || null,
+          prixEstime: validationResult.data.prixEstime || null,
+        },
+      });
+      message = "Item ajouté à la liste d'épicerie";
+    }
+
     return NextResponse.json<ApiResponse>(
-      { data: ligne, message: "Item ajouté à la liste d'épicerie" },
-      { status: 201 }
+      { data: ligne, message },
+      { status: existingLine ? 200 : 201 }
     );
   } catch (error) {
     console.error("Erreur lors de l'ajout d'un item:", error);

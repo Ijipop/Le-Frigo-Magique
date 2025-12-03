@@ -209,6 +209,62 @@ export default function ListeEpicerie() {
     };
   }, []);
 
+  // Réinitialiser les sélections si la liste est vide
+  useEffect(() => {
+    if (!liste || liste.lignes.length === 0) {
+      setSelectedMerchants((prev) => {
+        if (prev.size > 0) {
+          setDynamicTotal(0);
+          window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+          return new Set();
+        }
+        return prev;
+      });
+    }
+  }, [liste]);
+
+  // Filtrer les épiceries sélectionnées pour ne garder que celles qui ont encore des deals
+  useEffect(() => {
+    if (!dealsResults || !dealsResults.results || dealsResults.results.length === 0) {
+      // Si pas de deals, réinitialiser les sélections
+      setSelectedMerchants((prev) => {
+        if (prev.size > 0) {
+          setDynamicTotal(0);
+          window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+          return new Set();
+        }
+        return prev;
+      });
+      return;
+    }
+
+    // Obtenir la liste des épiceries disponibles dans les deals
+    const availableMerchants = new Set(
+      dealsResults.results.map((r: any) => r.flyer.merchant.toLowerCase())
+    );
+
+    // Filtrer les épiceries sélectionnées pour ne garder que celles qui existent encore
+    setSelectedMerchants((prev) => {
+      const filtered = new Set<string>();
+      prev.forEach((merchant) => {
+        if (availableMerchants.has(merchant.toLowerCase())) {
+          filtered.add(merchant);
+        }
+      });
+
+      // Si des épiceries ont été retirées, mettre à jour le total
+      if (filtered.size !== prev.size) {
+        // Le total sera recalculé par AccordionEpiceries via onTotalChange
+        if (filtered.size === 0) {
+          setDynamicTotal(0);
+          window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+        }
+      }
+
+      return filtered;
+    });
+  }, [dealsResults]);
+
   // Écouter les événements de mise à jour du garde-manger
   useEffect(() => {
     const handleGardeMangerUpdate = () => {
@@ -390,6 +446,10 @@ export default function ListeEpicerie() {
         toast.success(result.message || "Liste d'épicerie vidée");
         fetchListe();
         setDeleteAllModal(false);
+        // Réinitialiser les épiceries sélectionnées quand on efface tout
+        setSelectedMerchants(new Set());
+        setDynamicTotal(0);
+        window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
       } else {
         const error = await response.json();
         toast.error(error.error || "Erreur lors de la suppression");
@@ -546,10 +606,11 @@ export default function ListeEpicerie() {
         }
       }
       
-      // Calculer le prix total estimé pour cette ligne (prix unitaire estimé × quantité)
-      // Ceci est utilisé pour le "total" (prix original estimé)
-      const prixTotalEstime = prixUnitaireEstime * quantite;
-      total += prixTotalEstime;
+      // 🎯 IMPORTANT: Le prix estimé est le prix du paquet/unité, pas multiplié par la quantité
+      // Exemple: Si on a besoin de 3 œufs et que le prix est 4.99$ pour une douzaine,
+      // on utilise 4.99$ (un seul paquet suffit), pas 4.99$ × 3
+      const prixPaquetEstime = prixUnitaireEstime;
+      total += prixPaquetEstime;
       
       // 🎯 IMPORTANT: Pour le total avec rabais, utiliser le prix du PRODUIT COMPLET (deal)
       // Le prix des deals est pour un produit complet (paquet/unité), pas pour la quantité nécessaire.
@@ -562,17 +623,15 @@ export default function ListeEpicerie() {
         // Car un produit complet couvre généralement plusieurs portions/unités
         totalAvecRabais += meilleurDeal.price;
       } else {
-        // Si pas de deal, utiliser le prix estimé (qui est déjà calculé pour la quantité)
-        totalAvecRabais += prixTotalEstime;
+        // Si pas de deal, utiliser le prix estimé du paquet (pas multiplié par la quantité)
+        totalAvecRabais += prixPaquetEstime;
       }
       
       // Calculer l'économie si on a un prix estimé et un deal
-      if (prixUnitaireEstime > 0 && meilleurDeal.price !== null) {
-        // Estimation: on assume qu'un produit complet couvre plusieurs portions
-        // L'économie est approximative car on ne connaît pas la taille exacte du produit
-        const prixEstimeProduitComplet = prixUnitaireEstime * 5; // Estimation: 5 portions par produit
-        if (meilleurDeal.price < prixEstimeProduitComplet) {
-          const economieLigne = prixEstimeProduitComplet - meilleurDeal.price;
+      if (prixPaquetEstime > 0 && meilleurDeal.price !== null) {
+        // L'économie est la différence entre le prix estimé du paquet et le prix du deal
+        if (meilleurDeal.price < prixPaquetEstime) {
+          const economieLigne = prixPaquetEstime - meilleurDeal.price;
           economie += economieLigne;
         }
       }
@@ -739,14 +798,16 @@ export default function ListeEpicerie() {
               const deal = getBestDealForIngredient(ligne.nom);
               const hasDeal = deal.price !== null;
               const quantite = ligne.quantite || 1;
-              const prixUnitaireEstime = ligne.prixEstime || 0;
-              const prixTotalRabais = hasDeal ? deal.price! * quantite : null;
-              const prixTotalEstime = ligne.prixEstime ? ligne.prixEstime * quantite : null;
-              // Calculer l'économie basée sur le prix estimé et le meilleur prix trouvé (pas la somme de tous les deals)
-              const economieUnitaire = hasDeal && prixUnitaireEstime > 0 
-                ? Math.max(0, prixUnitaireEstime - deal.price!) 
+              // Le prix estimé est le prix du paquet/unité, pas multiplié par la quantité
+              const prixPaquetEstime = ligne.prixEstime || 0;
+              // Le prix du deal est aussi pour le paquet/unité complet
+              const prixPaquetRabais = hasDeal ? deal.price! : null;
+              // Calculer l'économie basée sur le prix du paquet estimé vs le prix du paquet en rabais
+              const economieParPaquet = hasDeal && prixPaquetEstime > 0 
+                ? Math.max(0, prixPaquetEstime - deal.price!) 
                 : 0;
-              const economieTotale = economieUnitaire * quantite;
+              // L'économie totale est l'économie par paquet (on n'a besoin que d'un paquet)
+              const economieTotale = economieParPaquet;
               
               const isExpanded = expandedItems.has(ligne.id);
               const allDeals = hasDeal ? getAllDealsForIngredient(ligne.nom) : [];
@@ -833,14 +894,15 @@ export default function ListeEpicerie() {
                             )}
                           </div>
                         ) : (() => {
-                          // Afficher le prix unitaire en gris pour les items pas en rabais
-                          const prixUnitaire = ingredientPrices[ligne.id];
-                          if (prixUnitaire !== undefined && prixUnitaire > 0) {
+                          // Afficher le prix de l'item (paquet/unité) en gris pour les items pas en rabais
+                          // Le prix est pour le paquet/unité complet, pas multiplié par la quantité
+                          const prixItem = ingredientPrices[ligne.id];
+                          if (prixItem !== undefined && prixItem > 0) {
                             return (
                               <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
                                 <DollarSign className="w-3 h-3" />
                                 <span className="text-sm">
-                                  {prixUnitaire.toFixed(2)}$ / {ligne.unite || "unité"}
+                                  {prixItem.toFixed(2)}$
                                 </span>
                               </span>
                             );

@@ -258,10 +258,15 @@ export default function InformationsLegales() {
                           <DollarSign className="w-4 h-4 text-orange-500" />
                           Générez votre menu de la semaine
                         </h4>
-                        <p className="text-sm">
+                        <p className="text-sm mb-2">
                           Dans l'onglet <strong>"Budget"</strong>, choisissez le nombre de jours et les repas (déjeuner, dîner, souper). 
                           Cliquez sur <strong>"Générer les recettes de la semaine"</strong>. 
                           Sélectionnez celles qui vous plaisent et ajoutez-les !
+                        </p>
+                        <p className="text-sm">
+                          <strong>Suivi du budget :</strong> Dans la boîte "Recettes de la semaine", 
+                          vous verrez votre budget utilisé et restant. Le budget se met à jour automatiquement 
+                          lorsque vous sélectionnez des épiceries dans l'onglet "Épicerie" !
                         </p>
                       </div>
                     </div>
@@ -278,10 +283,18 @@ export default function InformationsLegales() {
                           <ShoppingBag className="w-4 h-4 text-orange-500" />
                           Faites votre liste d'épicerie
                         </h4>
-                        <p className="text-sm">
+                        <p className="text-sm mb-2">
                           Allez dans <strong>"Épicerie"</strong>. 
                           Cliquez sur <strong>"Ajouter"</strong> pour mettre des produits dans votre liste. 
-                          Cliquez sur <strong>"Chercher les rabais"</strong> pour voir les meilleurs prix près de chez vous !
+                          Les ingrédients des recettes de la semaine sont automatiquement ajoutés !
+                        </p>
+                        <p className="text-sm mb-2">
+                          <strong>💡 Astuce :</strong> L'eau est automatiquement exclue de votre liste (vous en avez déjà à la maison !).
+                        </p>
+                        <p className="text-sm">
+                          Cliquez sur <strong>"Chercher les rabais"</strong> pour voir les meilleurs prix près de chez vous. 
+                          Sélectionnez une ou plusieurs épiceries dans l'accordéon pour voir le sous-total avec rabais, 
+                          qui sera automatiquement déduit de votre budget !
                         </p>
                       </div>
                     </div>
@@ -298,9 +311,37 @@ export default function InformationsLegales() {
                           <Heart className="w-4 h-4 text-orange-500" />
                           Sauvegardez vos recettes préférées
                         </h4>
-                        <p className="text-sm">
+                        <p className="text-sm mb-2">
                           Quand vous trouvez une recette que vous aimez, cliquez sur le <strong>cœur</strong> ❤️. 
                           Elle sera sauvegardée dans l'onglet <strong>"Favoris"</strong> pour plus tard !
+                        </p>
+                        <p className="text-sm">
+                          <strong>Ajout rapide :</strong> Depuis vos favoris, vous pouvez directement ajouter une recette 
+                          à votre semaine en cliquant sur le bouton <strong>+</strong>. Les ingrédients seront automatiquement 
+                          ajoutés à votre liste d'épicerie !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Étape 6 - Nouvelle étape pour Premium */}
+                  <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-white flex items-center justify-center font-bold text-sm">
+                        6
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <Crown className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                          Passez à Premium (optionnel)
+                        </h4>
+                        <p className="text-sm mb-2">
+                          Pour débloquer toutes les fonctionnalités avancées, passez à <strong>FrigoPop Premium</strong> ! 
+                          Cliquez sur le bouton <strong>"Passer à FrigoPop Premium"</strong> dans la section "Statut d'abonnement" ci-dessus.
+                        </p>
+                        <p className="text-sm">
+                          <strong>Avantages Premium :</strong> Recherche illimitée de rabais, historique des prix, 
+                          notifications personnalisées, support prioritaire et analyses avancées d'économies.
                         </p>
                       </div>
                     </div>
