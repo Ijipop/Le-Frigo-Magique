@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/signin",
   "/signout",
   "/api/webhooks/clerk", // Webhook Clerk doit être accessible publiquement
+  "/api/stripe/webhook", // Webhook Stripe doit être accessible publiquement
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

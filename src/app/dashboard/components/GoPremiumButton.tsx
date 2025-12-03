@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Crown, Loader2, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Crown, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Button from "../../../components/ui/button";
 
@@ -11,14 +11,47 @@ interface GoPremiumButtonProps {
   size?: "sm" | "md" | "lg";
 }
 
+interface PremiumStatus {
+  isPremium: boolean;
+  source: "lifetime" | "stripe" | "legacy" | null;
+  premiumUntil: string | null;
+  isExpired: boolean;
+}
+
 export function GoPremiumButton({ 
   className = "", 
   variant = "primary",
   size = "md" 
 }: GoPremiumButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  // Vérifier le statut premium au chargement
+  useEffect(() => {
+    const checkPremiumStatus = async () => {
+      try {
+        const res = await fetch("/api/user/subscription");
+        if (res.ok) {
+          const data = await res.json();
+          setPremiumStatus(data);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification du statut premium:", error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkPremiumStatus();
+  }, []);
 
   const handleClick = async () => {
+    // Si l'utilisateur est déjà premium, ne rien faire
+    if (premiumStatus?.isPremium) {
+      toast.info("Vous êtes déjà un utilisateur Premium !");
+      return;
+    }
     try {
       setLoading(true);
 
@@ -99,6 +132,37 @@ export function GoPremiumButton({
     }
   };
 
+  // Si on vérifie encore le statut, afficher un état de chargement
+  if (checkingStatus) {
+    return (
+      <Button
+        disabled
+        variant={variant}
+        size={size}
+        className={className}
+      >
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Vérification...
+      </Button>
+    );
+  }
+
+  // Si l'utilisateur est premium, afficher "Utilisateur Premium"
+  if (premiumStatus?.isPremium) {
+    return (
+      <Button
+        disabled
+        variant="secondary"
+        size={size}
+        className={`${className} bg-gradient-to-r from-amber-400 to-yellow-500 text-white border-0`}
+      >
+        <CheckCircle2 className="w-4 h-4 mr-2" />
+        Utilisateur Premium
+      </Button>
+    );
+  }
+
+  // Sinon, afficher le bouton pour devenir premium
   return (
     <Button
       onClick={handleClick}

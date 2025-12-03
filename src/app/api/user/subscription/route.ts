@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "../../../../../lib/prisma";
 import { getOrCreateUser } from "../../../../../lib/utils/user";
-import { UnauthorizedError, NotFoundError, InternalServerError, withErrorHandling } from "../../../../../lib/utils/apiError";
+import { isPremium } from "../../../../../lib/utils/premium";
+import { UnauthorizedError, InternalServerError, withErrorHandling } from "../../../../../lib/utils/apiError";
 
 // GET - Récupérer le statut d'abonnement de l'utilisateur
 export const GET = withErrorHandling(async () => {
@@ -18,22 +18,14 @@ export const GET = withErrorHandling(async () => {
     throw new InternalServerError("Impossible de récupérer l'utilisateur");
   }
 
-  const preferences = await prisma.preferences.findUnique({
-    where: { utilisateurId: utilisateur.id },
-    select: {
-      isPremium: true,
-      premiumUntil: true,
-    },
-  });
-
-  const isPremium = preferences?.isPremium ?? false;
-  const premiumUntil = preferences?.premiumUntil;
-  const isActive = isPremium && premiumUntil && new Date(premiumUntil) > new Date();
+  // Utiliser la fonction isPremium() qui vérifie lifetime, Stripe et legacy
+  const premiumStatus = await isPremium(utilisateur.id);
 
   return NextResponse.json({
-    isPremium: isActive,
-    premiumUntil: premiumUntil,
-    isExpired: isPremium && premiumUntil && new Date(premiumUntil) <= new Date(),
+    isPremium: premiumStatus.isPremium,
+    source: premiumStatus.source,
+    premiumUntil: premiumStatus.premiumUntil,
+    isExpired: premiumStatus.isExpired,
   });
 });
 
