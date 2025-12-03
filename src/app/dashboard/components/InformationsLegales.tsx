@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Scale, Mail, Code, Calendar, Shield, FileText, Crown, Sparkles, ChevronDown, BookOpen, ChefHat, ShoppingBag, DollarSign, Heart, User } from "lucide-react";
 import Button from "../../../components/ui/button";
+import { GoPremiumButton } from "./GoPremiumButton";
 import { toast } from "sonner";
 
 interface SubscriptionStatus {
@@ -90,12 +91,7 @@ export default function InformationsLegales() {
     }
   };
 
-  const handleSubscribe = () => {
-    // TODO: Implémenter la logique d'abonnement (Stripe, PayPal, etc.)
-    toast.info("Fonctionnalité d'abonnement à venir prochainement !");
-    // Pour l'instant, on peut juste afficher un message
-    // Plus tard, rediriger vers une page de paiement
-  };
+  // handleSubscribe n'est plus nécessaire, GoPremiumButton gère tout
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -166,14 +162,11 @@ export default function InformationsLegales() {
                   <li>Support prioritaire</li>
                   <li>Analyses avancées d'économies</li>
                 </ul>
-                <Button
-                  onClick={handleSubscribe}
+                <GoPremiumButton
                   variant="primary"
+                  size="md"
                   className="w-full"
-                >
-                  <Crown className="w-4 h-4 mr-2" />
-                  S'abonner à Premium
-                </Button>
+                />
               </div>
             </div>
           )}

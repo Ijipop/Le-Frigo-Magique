@@ -280,7 +280,8 @@ function parseIngredientString(
   // Exemples anglais: "8 medium sized shrimp", "2 garlic cloves", "4 tablespoons soy sauce"
   const patterns = [
     // Format: quantité + unité + "de"/"of" + nom
-    /^(\d+\/\d+|\d+\.?\d*)\s+([a-zàâäéèêëïîôùûüÿç]+(?:\s+[a-zàâäéèêëïîôùûüÿç]+)*)\s+(?:de|d'|d"|of)\s+(.+)$/i,
+    // Correction: d" (guillemet) remplacé par d' (apostrophe) pour matcher les constructions françaises
+    /^(\d+\/\d+|\d+\.?\d*)\s+([a-zàâäéèêëïîôùûüÿç]+(?:\s+[a-zàâäéèêëïîôùûüÿç]+)*)\s+(?:de|d'|of)\s+(.+)$/i,
     // Format: quantité + unité + nom (sans "de"/"of")
     /^(\d+\/\d+|\d+\.?\d*)\s+([a-zàâäéèêëïîôùûüÿç]+(?:\s+[a-zàâäéèêëïîôùûüÿç]+)*)\s+(.+)$/i,
     // Format: quantité + nom

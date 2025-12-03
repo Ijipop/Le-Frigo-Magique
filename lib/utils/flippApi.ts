@@ -132,12 +132,16 @@ export async function getFlyerItems(
               for (const textArea of item.text_areas) {
                 const text = (textArea.text || textArea.content || "").toLowerCase();
                 // Chercher des patterns comme "was $5.99", "reg $5.99", "was 5.99", etc.
-                const wasMatch = text.match(/(?:was|était|prix régulier|prix reg|reg)\s*\$?\s*(\d+\.?\d*)/);
-                const regMatch = text.match(/(?:prix régulier|prix reg|reg|regular)\s*\$?\s*(\d+\.?\d*)/);
+                // Utiliser des patterns plus précis pour éviter de matcher des années ou autres nombres
+                // Pattern amélioré : doit être suivi d'un espace, fin de ligne, ou caractère non-alphanumérique
+                // et doit contenir un point décimal ou être un nombre raisonnable (max 4 chiffres avant le point)
+                const wasMatch = text.match(/(?:was|était|prix régulier|prix reg|reg)\s*\$?\s*(\d{1,4}(?:\.\d{2})?)(?:\s|$|[^\d])/);
+                const regMatch = text.match(/(?:prix régulier|prix reg|reg|regular)\s*\$?\s*(\d{1,4}(?:\.\d{2})?)(?:\s|$|[^\d])/);
                 if (wasMatch || regMatch) {
                   const priceStr = (wasMatch || regMatch)![1];
                   const priceNum = parseFloat(priceStr);
-                  if (!isNaN(priceNum) && priceNum > 0) {
+                  // Valider que c'est un prix raisonnable (entre 0.01 et 9999.99)
+                  if (!isNaN(priceNum) && priceNum > 0 && priceNum <= 9999.99) {
                     foundOriginalPrice = priceNum;
                     break;
                   }

@@ -17,6 +17,10 @@ model Utilisateur {
   updatedAt               DateTime                @updatedAt
   jourSemaineBudget       Int?
   typeRepasBudget         String?
+  // Stripe
+  stripeCustomerId        String?                 @unique // null = jamais passé par Stripe
+  stripeSubId             String?                 @unique // null = pas d'abo actif Stripe
+  stripePriceId           String?                 // optionnel, pour savoir quel plan
   gardeManger             ArticleGardeManger[]
   listesEpicerie          ListeEpicerie[]
   preferences             Preferences?
@@ -24,6 +28,7 @@ model Utilisateur {
   recettesFavoritesSearch RecetteFavoriteSearch[]
   recettesSemaine         RecetteSemaine[]
   repasSemaine            RepasSemaine[]
+  subscriptions           Subscription[]          // Relation vers les abonnements
 }
 
 model Preferences {
@@ -35,9 +40,30 @@ model Preferences {
   cuisinesFavorites String?
   alimentsPreferes  String?
   codePostal        String?
+  // Premium (legacy - à migrer progressivement)
   isPremium         Boolean     @default(false)
   premiumUntil      DateTime?
+  // Lifetime Premium
+  isLifetimePremium Boolean     @default(false)
+  premiumSince      DateTime?   // Date d'activation du premium (lifetime ou Stripe)
   utilisateur       Utilisateur @relation(fields: [utilisateurId], references: [id])
+}
+
+model Subscription {
+  id                String      @id @default(cuid())
+  utilisateurId     String
+  stripeSubId       String      @unique // ID Stripe de l'abonnement
+  stripePriceId     String?     // Plan Stripe
+  status            String      // "active", "canceled", "past_due", etc.
+  currentPeriodEnd  DateTime?   // Fin de la période actuelle
+  cancelAtPeriodEnd Boolean     @default(false) // Annulation à la fin de la période
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  utilisateur       Utilisateur @relation(fields: [utilisateurId], references: [id])
+  
+  @@index([utilisateurId])
+  @@index([stripeSubId])
+  @@index([status])
 }
 
 model ArticleGardeManger {
