@@ -4,13 +4,22 @@ import { auth } from "@clerk/nextjs/server";
 import { UnauthorizedError, InternalServerError, withErrorHandling } from "../../../../../lib/utils/apiError";
 import { logger } from "../../../../../lib/utils/logger";
 
-// Initialiser Stripe
-// Utiliser la version d'API par défaut de la bibliothèque Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2025-11-17.clover",
-});
-
 export const runtime = "nodejs";
+
+/**
+ * Initialise Stripe de manière sécurisée
+ * Retourne null si la clé n'est pas configurée (pour éviter les erreurs au build)
+ */
+function getStripeInstance(): Stripe | null {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    return null;
+  }
+  
+  return new Stripe(secretKey, {
+    apiVersion: "2025-11-17.clover",
+  });
+}
 
 /**
  * POST - Créer une session de checkout Stripe pour l'abonnement premium
@@ -31,6 +40,12 @@ export const POST = withErrorHandling(async () => {
   if (!process.env.STRIPE_PRICE_ID) {
     logger.error("STRIPE_PRICE_ID n'est pas configurée", undefined, {});
     throw new InternalServerError("Configuration Stripe manquante");
+  }
+
+  // Initialiser Stripe
+  const stripe = getStripeInstance();
+  if (!stripe) {
+    throw new InternalServerError("Impossible d'initialiser Stripe");
   }
 
   // Récupérer l'URL d'origine pour les redirections
