@@ -487,11 +487,12 @@ export default function RecettesSemaine() {
                 >
                   {/* Miniature */}
                   <div className="flex-shrink-0">
-                    {recette.image ? (
+                    {recette.image && !recette.image.includes('foodista.com') ? (
                       <img
                         src={recette.image}
                         alt={recette.titre}
                         className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                        loading="lazy"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";

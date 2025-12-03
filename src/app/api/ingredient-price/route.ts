@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "../../../../lib/prisma";
 import { normalizeIngredientName } from "../../../../lib/utils/ingredientMatcher";
 import { getFallbackPrice } from "../../../../lib/utils/priceFallback";
+import { getGovPrice } from "../../../../lib/utils/govPriceLoader.server";
 
 export const runtime = "nodejs";
 
@@ -33,18 +34,29 @@ export async function GET(req: Request) {
     // Normaliser le nom de l'ingrédient
     const normalized = normalizeIngredientName(ingredient);
 
-    // Chercher dans la BD PrixIngredient
+    // 1. Chercher dans la BD PrixIngredient (priorité aux prix gouvernementaux)
     try {
-      const prixIngredient = await prisma.prixIngredient.findUnique({
-        where: { nom: normalized },
+      // Chercher d'abord les prix gouvernementaux (source="government")
+      let prixIngredient = await prisma.prixIngredient.findFirst({
+        where: { 
+          nom: normalized,
+          source: "government",
+        },
       });
+
+      // Si pas trouvé, chercher n'importe quel prix (Flipp, etc.)
+      if (!prixIngredient) {
+        prixIngredient = await prisma.prixIngredient.findUnique({
+          where: { nom: normalized },
+        });
+      }
 
       if (prixIngredient) {
         return NextResponse.json({
           success: true,
           data: {
             prix: prixIngredient.prixMoyen,
-            source: "database",
+            source: prixIngredient.source === "government" ? "government" : "database",
             categorie: prixIngredient.categorie || null,
           },
         });
@@ -53,7 +65,26 @@ export async function GET(req: Request) {
       console.error("Erreur lors de la recherche dans PrixIngredient:", error);
     }
 
-    // Si pas trouvé dans la BD, utiliser le fallback
+    // 2. Fallback: Chercher dans les prix gouvernementaux (CSV) si pas encore importé dans la BD
+    // Cette étape sera de moins en moins utilisée une fois l'import fait
+    try {
+      const govPrice = getGovPrice(ingredient);
+      if (govPrice !== null && govPrice > 0) {
+        const fallback = getFallbackPrice(ingredient); // Pour obtenir la catégorie
+        return NextResponse.json({
+          success: true,
+          data: {
+            prix: govPrice,
+            source: "government",
+            categorie: fallback?.categorie || null,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors de la récupération du prix gouvernemental:", error);
+    }
+
+    // 3. Si pas trouvé, utiliser le fallback manuel
     const fallback = getFallbackPrice(ingredient);
     if (fallback) {
       return NextResponse.json({

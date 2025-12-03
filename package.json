@@ -14,7 +14,9 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:deploy:retry": "node scripts/migrate-deploy.js",
     "seed": "tsx prisma/seed.ts",
-    "check-users": "tsx scripts/check-users.ts"
+    "check-users": "tsx scripts/check-users.ts",
+    "import-gov-prices": "tsx scripts/import-gov-prices.ts",
+    "check-prix": "tsx scripts/check-prix-ingredient.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.35.5",
@@ -44,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.4",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

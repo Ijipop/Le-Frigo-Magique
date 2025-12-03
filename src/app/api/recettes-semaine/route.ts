@@ -308,11 +308,18 @@ export async function POST(req: Request) {
       }
     }
 
+    // Normaliser l'URL de l'image pour éviter les problèmes avec foodista.com
+    const { normalizeRecipeImage } = await import("../../../../lib/utils/imageNormalizer");
+    const normalizedImage = normalizeRecipeImage(
+      normalizeValue(validation.data.image),
+      finalSpoonacularId || recoveredSpoonacularId
+    );
+
     const recetteData: any = {
       utilisateurId: utilisateur.id,
       titre: validation.data.titre,
       url: validation.data.url,
-      image: normalizeValue(validation.data.image),
+      image: normalizedImage,
       snippet: normalizeValue(validation.data.snippet),
       source: normalizeValue(validation.data.source),
       estimatedCost,
