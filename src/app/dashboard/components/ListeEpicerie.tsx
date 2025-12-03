@@ -59,19 +59,33 @@ export default function ListeEpicerie() {
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set());
-  const [dynamicTotal, setDynamicTotal] = useState<number | null>(null);
+  const [dynamicTotal, setDynamicTotal] = useState<number>(0); // Initialisé à 0 par défaut
   const [isListExpanded, setIsListExpanded] = useState<boolean>(true); // État pour l'accordéon de la liste
+  const [ingredientPrices, setIngredientPrices] = useState<Record<string, number>>({}); // Cache des prix unitaires
 
   // Charger les épiceries sélectionnées depuis localStorage
   useEffect(() => {
     const saved = localStorage.getItem("selectedMerchants");
     if (saved) {
       try {
-        const merchants = JSON.parse(saved);
-        setSelectedMerchants(new Set(merchants));
+        const merchants = JSON.parse(saved) as string[];
+        const merchantsSet = new Set<string>(merchants);
+        setSelectedMerchants(merchantsSet);
+        // Si aucune épicerie n'est sélectionnée, s'assurer que le total est à 0
+        if (merchantsSet.size === 0) {
+          setDynamicTotal(0);
+          window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+        }
       } catch (e) {
         console.error("Erreur lors du chargement des épiceries sélectionnées:", e);
+        // En cas d'erreur, s'assurer que le total est à 0
+        setDynamicTotal(0);
+        window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
       }
+    } else {
+      // Aucune épicerie sauvegardée, s'assurer que le total est à 0
+      setDynamicTotal(0);
+      window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
     }
   }, []);
 
@@ -93,15 +107,22 @@ export default function ListeEpicerie() {
       } else {
         next.add(merchant);
       }
+      // Si aucune épicerie n'est sélectionnée, remettre le total à 0
+      if (next.size === 0) {
+        setDynamicTotal(0);
+        window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+      }
       return next;
     });
   };
 
   // Gérer le changement de total dynamique
   const handleTotalChange = (total: number) => {
-    setDynamicTotal(total);
+    // Si aucune épicerie n'est sélectionnée, le total doit être 0
+    const finalTotal = selectedMerchants.size > 0 ? total : 0;
+    setDynamicTotal(finalTotal);
     // Dispatcher un événement pour mettre à jour le budget dans RecettesSemaine
-    window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total } }));
+    window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: finalTotal } }));
   };
 
   const [formData, setFormData] = useState({
@@ -129,6 +150,42 @@ export default function ListeEpicerie() {
     } else {
       setDealsResults(null);
     }
+  }, [liste]);
+
+  // Charger les prix unitaires pour les items sans rabais
+  useEffect(() => {
+    if (!liste || liste.lignes.length === 0) {
+      setIngredientPrices({});
+      return;
+    }
+
+    const fetchPrices = async () => {
+      const prices: Record<string, number> = {};
+      
+      for (const ligne of liste.lignes) {
+        // Si l'item a déjà un prix estimé, l'utiliser directement (c'est déjà le prix unitaire)
+        if (ligne.prixEstime !== null && ligne.prixEstime !== undefined && ligne.prixEstime > 0) {
+          prices[ligne.id] = ligne.prixEstime; // Prix unitaire
+        } else {
+          // Sinon, chercher dans la BD via l'API
+          try {
+            const response = await fetch(`/api/ingredient-price?ingredient=${encodeURIComponent(ligne.nom)}`);
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data?.prix) {
+                prices[ligne.id] = result.data.prix;
+              }
+            }
+          } catch (error) {
+            console.error(`Erreur lors de la récupération du prix pour ${ligne.nom}:`, error);
+          }
+        }
+      }
+      
+      setIngredientPrices(prices);
+    };
+
+    fetchPrices();
   }, [liste]);
 
   // Écouter les événements de mise à jour des deals
@@ -587,34 +644,31 @@ export default function ListeEpicerie() {
           const { total, totalAvecRabais, economie } = calculerTotal();
           const hasDeals = dealsResults && dealsResults.results.length > 0;
           
-          // Utiliser le total dynamique si des épiceries sont sélectionnées, sinon utiliser le total avec rabais
-          const displayTotal = dynamicTotal !== null && selectedMerchants.size > 0 
-            ? dynamicTotal 
-            : totalAvecRabais;
+          // Le sous-total avec rabais n'est affiché que si des épiceries sont sélectionnées
+          // Sinon, il reste à 0 par défaut
+          const displayTotal = selectedMerchants.size > 0 ? dynamicTotal : 0;
           
           return (
             <div className="mb-4 space-y-2">
-              {/* Sous-total avec rabais */}
-              <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                    {selectedMerchants.size > 0 
-                      ? `Sous-total (${selectedMerchants.size} épicerie${selectedMerchants.size > 1 ? "s" : ""})`
-                      : hasDeals 
-                      ? "Sous-total avec rabais" 
-                      : "Sous-total estimé"}
-                  </span>
-                  <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                    {displayTotal.toFixed(2)}$
-                  </span>
-                </div>
-                {hasDeals && total > 0 && total > displayTotal && (
-                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
-                    <span>Prix original:</span>
-                    <span className="line-through">{total.toFixed(2)}$</span>
+              {/* Sous-total avec rabais - Affiché seulement si des épiceries sont sélectionnées */}
+              {selectedMerchants.size > 0 && (
+                <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-lg border-2 border-orange-300 dark:border-orange-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                      {`Sous-total (${selectedMerchants.size} épicerie${selectedMerchants.size > 1 ? "s" : ""})`}
+                    </span>
+                    <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                      {displayTotal.toFixed(2)}$
+                    </span>
                   </div>
-                )}
-              </div>
+                  {hasDeals && total > 0 && total > displayTotal && (
+                    <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                      <span>Prix original:</span>
+                      <span className="line-through">{total.toFixed(2)}$</span>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Économie totale - Box verte */}
               {hasDeals && economie > 0.01 && (
@@ -776,12 +830,21 @@ export default function ListeEpicerie() {
                               </span>
                             )}
                           </div>
-                        ) : prixTotalEstime !== null ? (
-                          <span className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" />
-                            {prixTotalEstime.toFixed(2)}$
-                          </span>
-                        ) : null}
+                        ) : (() => {
+                          // Afficher le prix unitaire en gris pour les items pas en rabais
+                          const prixUnitaire = ingredientPrices[ligne.id];
+                          if (prixUnitaire !== undefined && prixUnitaire > 0) {
+                            return (
+                              <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                                <DollarSign className="w-3 h-3" />
+                                <span className="text-sm">
+                                  {prixUnitaire.toFixed(2)}$ / {ligne.unite || "unité"}
+                                </span>
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 relative z-10">

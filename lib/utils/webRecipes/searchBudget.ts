@@ -56,8 +56,17 @@ export async function searchByBudgetOnly(
     }
 
     // Extraire typeRepas des filtres si présent
-    const typeRepasFilter = filtersArray.find(f => ['dejeuner', 'diner', 'souper', 'collation'].includes(f));
-    const finalTypeRepas = typeRepasFilter || typeRepas;
+    const typeRepasFilter = filtersArray.find(f => ['dejeuner', 'déjeuner', 'petit-dejeuner', 'petit-déjeuner', 'diner', 'dîner', 'lunch', 'souper', 'dinner', 'collation'].includes(f));
+    // Normaliser tous les alias vers les noms canoniques
+    let normalizedTypeRepasFilter = typeRepasFilter;
+    if (typeRepasFilter === 'petit-dejeuner' || typeRepasFilter === 'petit-déjeuner' || typeRepasFilter === 'déjeuner') {
+      normalizedTypeRepasFilter = 'dejeuner';
+    } else if (typeRepasFilter === 'dîner' || typeRepasFilter === 'lunch') {
+      normalizedTypeRepasFilter = 'diner';
+    } else if (typeRepasFilter === 'dinner') {
+      normalizedTypeRepasFilter = 'souper'; // dinner en anglais = souper au Québec
+    }
+    const finalTypeRepas = normalizedTypeRepasFilter || typeRepas;
 
     // 🎯 LOGIQUE DU BUDGET :
     // - Si c'est une recherche unique (1 repas seulement, pas de nbJours ou nbJours = 1 et 1 seul type de repas)

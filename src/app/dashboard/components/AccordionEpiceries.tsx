@@ -109,12 +109,9 @@ export default function AccordionEpiceries({
 
   // Calculer le total global basé sur les épiceries sélectionnées
   const calculateGlobalTotal = (): number => {
+    // Si aucune épicerie sélectionnée, retourner 0
     if (selectedMerchants.size === 0) {
-      // Si aucune épicerie sélectionnée, retourner le total estimé par défaut
-      return listeItems.reduce((sum, item) => {
-        const fallback = getFallbackPrice(item.nom);
-        return sum + (item.prixEstime || fallback?.prix || 4.50);
-      }, 0);
+      return 0;
     }
 
     // Pour chaque ingrédient, trouver le meilleur prix parmi les épiceries sélectionnées
