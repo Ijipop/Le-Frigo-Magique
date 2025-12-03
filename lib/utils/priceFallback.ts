@@ -2,9 +2,12 @@
  * Système de fallback pour les prix d'ingrédients
  * Utilisé quand Flipp n'a pas de données ou pour les ingrédients rares
  * 
- * PRIORITÉ:
- * 1. Prix gouvernementaux (CSV du gouvernement du Québec) - PRIORITÉ
- * 2. Prix moyens manuels (estimations du marché québécois) - FALLBACK
+ * Cette fonction fournit des prix moyens manuels (estimations du marché québécois).
+ * 
+ * NOTE IMPORTANTE: Les prix gouvernementaux (CSV) sont gérés séparément:
+ * - Ils sont accessibles via les routes API /api/ingredient-price et /api/gov-prices
+ * - Cette fonction ne peut pas les utiliser directement car elle doit rester synchrone
+ *   (utilisée côté client et serveur)
  * 
  * Prix moyens réalistes pour le Québec (en dollars CAD)
  * Basés sur des estimations du marché québécois
@@ -244,8 +247,6 @@ function findCategory(ingredient: string): string {
 /**
  * Normalise le nom d'un ingrédient pour le matching
  */
-import { getGovPrice } from "./govPriceLoader";
-
 function normalizeIngredientName(name: string): string {
   return name
     .toLowerCase()
@@ -260,9 +261,16 @@ function normalizeIngredientName(name: string): string {
 /**
  * Obtient un prix de fallback pour un ingrédient
  * 
- * PRIORITÉ:
- * 1. Prix gouvernementaux (CSV du gouvernement du Québec)
- * 2. Prix moyens manuels (estimations)
+ * Cette fonction fournit des prix moyens manuels (estimations du marché québécois)
+ * comme fallback quand les autres sources de prix ne sont pas disponibles.
+ * 
+ * NOTE: Les prix gouvernementaux (CSV) sont gérés séparément via:
+ * - Route API: /api/ingredient-price (qui utilise getGovPrice côté serveur)
+ * - Route API: /api/gov-prices (qui utilise govPriceLoader.server.ts)
+ * 
+ * Cette fonction doit rester synchrone car elle est utilisée côté client (React components)
+ * et côté serveur (API routes). Les prix gouvernementaux nécessitent l'accès au système
+ * de fichiers (fs) qui n'est disponible que côté serveur.
  * 
  * @param ingredient - Nom de l'ingrédient (ex: "poulet", "pâtes spaghetti")
  * @returns Prix en dollars CAD ou null si aucun fallback trouvé
@@ -272,12 +280,7 @@ export function getFallbackPrice(ingredient: string): FallbackPrice | null {
     return null;
   }
 
-  // 🎯 PRIORITÉ 1: Chercher dans les prix gouvernementaux
-  // Note: getGovPrice est asynchrone, mais getFallbackPrice doit rester synchrone
-  // On ne peut pas utiliser await ici, donc on skip les prix gouvernementaux dans cette fonction
-  // Les prix gouvernementaux seront utilisés via l'API route /api/ingredient-price
-
-  // 🎯 PRIORITÉ 2: Utiliser les prix moyens manuels (fallback)
+  // Utiliser les prix moyens manuels (fallback)
   const normalized = normalizeIngredientName(ingredient);
   const category = findCategory(normalized);
   const categoryPrices = FALLBACK_PRICES[category];

@@ -189,14 +189,15 @@ export function getPremiumStatusFromUser(
 
   // Legacy
   if (user.preferences?.isPremium) {
+    const premiumUntil = user.preferences.premiumUntil ?? null;
     const isActive =
-      !user.preferences.premiumUntil ||
-      new Date(user.preferences.premiumUntil) > new Date();
+      !premiumUntil ||
+      new Date(premiumUntil) > new Date();
 
     return {
       isPremium: isActive,
       source: "legacy",
-      premiumUntil: user.preferences.premiumUntil,
+      premiumUntil: premiumUntil,
       isExpired: !isActive,
     };
   }
