@@ -115,6 +115,7 @@ export async function calculateSpoonacularRecipeCost(
           // Ajuster le prix selon la quantité et l'unité
           ingredientCost = adjustPriceForQuantity(priceInfo.prix, quantity, unit);
           source = priceInfo.source === "flipp" ? "flipp" : 
+                   priceInfo.source === "government" ? "cache" : // Traiter "government" comme "cache" pour la compatibilité
                    priceInfo.source === "cache" ? "cache" : "fallback";
         } catch (error) {
           logger.warn("Erreur lors de la récupération du prix, utilisation du prix Spoonacular", {

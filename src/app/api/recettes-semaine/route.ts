@@ -308,11 +308,21 @@ export async function POST(req: Request) {
       }
     }
 
+    // Utiliser le spoonacularId fourni ou celui récupéré depuis une recette existante
+    const finalSpoonacularId = body.spoonacularId || recoveredSpoonacularId;
+
+    // Normaliser l'URL de l'image pour éviter les problèmes avec foodista.com
+    const { normalizeRecipeImage } = await import("../../../../lib/utils/imageNormalizer");
+    const normalizedImage = normalizeRecipeImage(
+      normalizeValue(validation.data.image),
+      finalSpoonacularId || null
+    );
+
     const recetteData: any = {
       utilisateurId: utilisateur.id,
       titre: validation.data.titre,
       url: validation.data.url,
-      image: normalizeValue(validation.data.image),
+      image: normalizedImage,
       snippet: normalizeValue(validation.data.snippet),
       source: normalizeValue(validation.data.source),
       estimatedCost,
@@ -320,8 +330,6 @@ export async function POST(req: Request) {
     };
     
     // Ajouter spoonacularId seulement s'il existe et est un nombre
-    // Utiliser le spoonacularId fourni ou celui récupéré depuis une recette existante
-    const finalSpoonacularId = body.spoonacularId || recoveredSpoonacularId;
     if (finalSpoonacularId && typeof finalSpoonacularId === 'number') {
       recetteData.spoonacularId = finalSpoonacularId;
       console.log(`✅ [API] spoonacularId à sauvegarder: ${finalSpoonacularId}`);

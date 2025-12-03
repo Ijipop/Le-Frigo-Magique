@@ -11,7 +11,7 @@ const FLIPP_BASE_URL = "https://backflipp.wishabi.com/flipp";
  */
 export interface IngredientPrice {
   prix: number;
-  source: "cache" | "flipp" | "fallback";
+  source: "cache" | "flipp" | "fallback" | "government";
   categorie?: string;
 }
 
@@ -155,21 +155,33 @@ export async function getIngredientPrice(
 
   const normalized = normalizeIngredientName(ingredient);
 
-  // 1. Chercher dans le cache DB
+  // 1. Chercher dans le cache DB (priorité aux prix gouvernementaux)
   try {
-    const cached = await prisma.prixIngredient.findUnique({
-      where: { nom: normalized },
+    // Chercher d'abord les prix gouvernementaux (source="government")
+    let cached = await prisma.prixIngredient.findFirst({
+      where: { 
+        nom: normalized,
+        source: "government",
+      },
     });
+
+    // Si pas trouvé, chercher n'importe quel prix (Flipp, etc.)
+    if (!cached) {
+      cached = await prisma.prixIngredient.findUnique({
+        where: { nom: normalized },
+      });
+    }
 
     if (cached) {
       logger.debug("Prix trouvé dans le cache DB", {
         ingredient,
         normalized,
         prix: cached.prixMoyen,
+        source: cached.source,
       });
       return {
         prix: cached.prixMoyen,
-        source: "cache",
+        source: cached.source === "government" ? "government" : "cache",
         categorie: cached.categorie || undefined,
       };
     }

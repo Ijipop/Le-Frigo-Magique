@@ -680,11 +680,12 @@ export default function QuickSettings() {
                   
                   {/* Image */}
                   <div className="flex-shrink-0">
-                    {recipe.image ? (
+                    {recipe.image && !recipe.image.includes('foodista.com') ? (
                       <img
                         src={recipe.image}
                         alt={recipe.title}
                         className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                        loading="lazy"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = "none";

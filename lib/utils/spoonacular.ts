@@ -3,6 +3,8 @@
  * Utilisé UNIQUEMENT pour les recherches par budget
  */
 
+import { normalizeRecipeImage } from "./imageNormalizer";
+
 interface SpoonacularRecipe {
   id: number;
   title: string;
@@ -400,10 +402,13 @@ export async function searchRecipesByBudget(
         console.log(`💰 [Spoonacular] "${recipe.title}": ${pricePerServingCAD.toFixed(2)}$ CAD/portion × ${recipe.servings} portions = ${estimatedCost.toFixed(2)}$ CAD total (pricePerServing: ${recipe.pricePerServing} centimes USD)`);
       }
       
+      // Normaliser l'URL de l'image pour éviter les problèmes avec foodista.com
+      const normalizedImage = normalizeRecipeImage(recipe.image, recipe.id);
+
       return {
         title: recipe.title,
         url: recipe.sourceUrl,
-        image: recipe.image || null,
+        image: normalizedImage,
         snippet: recipe.summary 
           ? recipe.summary.replace(/<[^>]*>/g, "").substring(0, 200) // Nettoyer le HTML et limiter
           : "",
