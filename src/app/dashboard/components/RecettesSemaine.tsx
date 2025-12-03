@@ -34,7 +34,7 @@ export default function RecettesSemaine() {
   const [addingToFavorites, setAddingToFavorites] = useState<Set<string>>(new Set());
   const [budgetHebdomadaire, setBudgetHebdomadaire] = useState<number | null>(null);
   const [sousTotalEpicerie, setSousTotalEpicerie] = useState<number | null>(null);
-  const [dynamicEpicerieTotal, setDynamicEpicerieTotal] = useState<number | null>(null);
+  const [dynamicEpicerieTotal, setDynamicEpicerieTotal] = useState<number>(0); // Initialisé à 0 par défaut
 
   // Charger le budget de l'utilisateur
   const fetchBudget = async () => {
@@ -109,12 +109,11 @@ export default function RecettesSemaine() {
         ? customEvent.detail.total 
         : typeof customEvent.detail === 'number' 
         ? customEvent.detail 
-        : null;
+        : 0;
       
-      if (total !== null && total !== undefined) {
-        console.log("💰 [RecettesSemaine] Total épicerie mis à jour:", total);
-        setDynamicEpicerieTotal(total);
-      }
+      // Toujours mettre à jour, même si c'est 0 (aucune épicerie sélectionnée)
+      console.log("💰 [RecettesSemaine] Total épicerie mis à jour:", total);
+      setDynamicEpicerieTotal(total);
     };
     
     window.addEventListener("epicerie-total-updated", handleEpicerieTotalUpdate);
@@ -343,11 +342,12 @@ export default function RecettesSemaine() {
             // Sinon, utiliser le sous-total estimé de la liste d'épicerie
             // En dernier recours, utiliser les coûts estimés des recettes
             const budgetUtilise = (() => {
-              // Si des épiceries sont sélectionnées, utiliser le total dynamique
-              if (dynamicEpicerieTotal !== null && dynamicEpicerieTotal > 0) {
+              // Si des épiceries sont sélectionnées (total > 0), utiliser le total dynamique
+              // C'est le montant réel que l'épicerie va coûter
+              if (dynamicEpicerieTotal > 0) {
                 return dynamicEpicerieTotal;
               }
-              // Sinon, utiliser le sous-total estimé de la liste d'épicerie
+              // Sinon (aucune épicerie sélectionnée), utiliser le sous-total estimé de la liste d'épicerie
               if (sousTotalEpicerie !== null && sousTotalEpicerie > 0) {
                 return sousTotalEpicerie;
               }

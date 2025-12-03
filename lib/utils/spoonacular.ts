@@ -74,10 +74,17 @@ export async function searchRecipesByBudget(
 
   // Mapper les types de repas vers les paramètres Spoonacular
   // Utiliser le paramètre "type" de l'API pour un filtrage fiable directement dans la requête
+  // Au Québec : déjeuner = petit-déjeuner (breakfast), dîner = repas du midi (lunch), souper = repas du soir (dinner)
   const mealTypeMap: { [key: string]: string } = {
     "dejeuner": "breakfast",
+    "déjeuner": "breakfast", // Alias avec accent
+    "petit-dejeuner": "breakfast", // Alias pour petit-déjeuner
+    "petit-déjeuner": "breakfast", // Alias avec accent
     "diner": "lunch",
+    "dîner": "lunch", // Alias avec accent (au Québec, dîner = repas du midi)
+    "lunch": "lunch", // Alias direct en anglais
     "souper": "main course", // Utiliser "main course" pour les soupers (plus fiable que "dinner")
+    "dinner": "main course", // Alias en anglais (dinner = souper au Québec)
     "collation": "snack",
   };
 
@@ -262,34 +269,102 @@ export async function searchRecipesByBudget(
       console.log(`🚫 [Spoonacular] ${noImageCount} recette(s) exclue(s) (pas de photo)`);
     }
 
-    // 🎯 Le filtrage par type est maintenant fait directement dans la requête API via le paramètre "type"
-    // On n'a plus besoin de filtrer après coup avec dishTypes, ce qui simplifie grandement le code
-    // Spoonacular garantit que seules les recettes du bon type sont retournées
-    // On garde juste un filtrage minimal pour les cas edge (desserts, etc.)
+    // 🎯 FILTRAGE STRICT PAR TYPE DE REPAS
+    // Le paramètre "type" de Spoonacular donne une bonne base, mais on doit aussi vérifier les dishTypes
+    // pour s'assurer que les recettes correspondent vraiment au type demandé
     if (typeRepas && mealTypeMap[typeRepas.toLowerCase()]) {
       const targetType = typeRepas.toLowerCase();
       const beforeCount = filteredResults.length;
+      let filteredOut = 0;
       let dessertsFiltered = 0;
       
-      // Filtrage minimal : exclure seulement les desserts évidents qui pourraient passer
-      // (normalement, le paramètre "type=main course" devrait déjà les exclure)
-      if (targetType === 'souper') {
-        filteredResults = filteredResults.filter(recipe => {
-          // Double vérification : exclure les desserts évidents (sécurité supplémentaire)
-          if (isDessertOrSweet(recipe)) {
-            dessertsFiltered++;
-            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré malgré type=main course)`);
+      // Normaliser le type (gérer les alias)
+      // Normaliser tous les alias vers les noms canoniques
+      let normalizedType = targetType;
+      if (targetType === 'petit-dejeuner' || targetType === 'petit-déjeuner' || targetType === 'déjeuner') {
+        normalizedType = 'dejeuner';
+      } else if (targetType === 'dîner' || targetType === 'lunch') {
+        normalizedType = 'diner';
+      } else if (targetType === 'dinner') {
+        normalizedType = 'souper'; // dinner en anglais = souper au Québec
+      }
+      
+      filteredResults = filteredResults.filter(recipe => {
+        const detectedType = detectMealType(recipe.dishTypes);
+        const dishTypesLower = (recipe.dishTypes || []).map(t => t.toLowerCase());
+        
+        // Exclure les desserts pour tous les types de repas
+        if (isDessertOrSweet(recipe)) {
+          dessertsFiltered++;
+          console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (dessert/plat sucré)`);
+          return false;
+        }
+        
+        // Si le type détecté correspond, on accepte
+        if (detectedType === normalizedType) {
+          return true;
+        }
+        
+        // Pour déjeuner (petit-déjeuner) : doit être breakfast ou brunch
+        if (normalizedType === 'dejeuner') {
+          // Accepter si les dishTypes contiennent breakfast ou brunch
+          if (dishTypesLower.some(t => t === 'breakfast' || t === 'brunch' || t.includes('morning'))) {
+            return true;
+          }
+          // Exclure si c'est clairement un autre type de repas (lunch, dinner, etc.)
+          if (dishTypesLower.some(t => t === 'lunch' || t === 'dinner' || t === 'main course')) {
+            filteredOut++;
+            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (type incorrect: ${recipe.dishTypes?.join(', ') || 'aucun type'})`);
             return false;
           }
+          // Si pas de dishTypes ou dishTypes vides, accepter (le paramètre "type" de Spoonacular a déjà filtré)
           return true;
-        });
-      }
+        }
+        
+        // Pour dîner (midi) : doit être lunch, snack, salad, ou sandwich
+        if (normalizedType === 'diner') {
+          // Accepter si les dishTypes contiennent lunch, snack, salad, ou sandwich
+          if (dishTypesLower.some(t => t === 'lunch' || t === 'snack' || t === 'salad' || t === 'sandwich')) {
+            return true;
+          }
+          // Exclure si c'est clairement un autre type de repas (breakfast, dinner, etc.)
+          if (dishTypesLower.some(t => t === 'breakfast' || t === 'dinner' || t === 'main course')) {
+            filteredOut++;
+            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (type incorrect: ${recipe.dishTypes?.join(', ') || 'aucun type'})`);
+            return false;
+          }
+          // Si pas de dishTypes ou dishTypes vides, accepter (le paramètre "type" de Spoonacular a déjà filtré)
+          return true;
+        }
+        
+        // Pour souper (repas principal du soir) : doit être dinner, main course, main dish, ou entree
+        if (normalizedType === 'souper') {
+          // Accepter si les dishTypes contiennent dinner, main course, main dish, ou entree
+          if (dishTypesLower.some(t => t === 'dinner' || t === 'main course' || t === 'main dish' || t === 'entree')) {
+            return true;
+          }
+          // Exclure si c'est clairement un autre type de repas (breakfast, lunch, etc.)
+          if (dishTypesLower.some(t => t === 'breakfast' || t === 'lunch' || t === 'snack')) {
+            filteredOut++;
+            console.log(`🚫 [Spoonacular] Recette "${recipe.title}" exclue (type incorrect: ${recipe.dishTypes?.join(', ') || 'aucun type'})`);
+            return false;
+          }
+          // Si pas de dishTypes ou dishTypes vides, accepter (le paramètre "type" de Spoonacular a déjà filtré)
+          return true;
+        }
+        
+        // Pour les autres types (collation, etc.), on accepte si détecté ou si pas de dishTypes
+        return detectedType === normalizedType || dishTypesLower.length === 0;
+      });
       
       if (dessertsFiltered > 0) {
         console.log(`🚫 [Spoonacular] ${dessertsFiltered} dessert(s) filtré(s) pour "${targetType}"`);
       }
+      if (filteredOut > 0) {
+        console.log(`🚫 [Spoonacular] ${filteredOut} recette(s) exclue(s) (type non correspondant) pour "${targetType}"`);
+      }
       
-      console.log(`🍴 [Spoonacular] Filtrage par type API: ${beforeCount} → ${filteredResults.length} recette(s) pour "${typeRepas}"`);
+      console.log(`🍴 [Spoonacular] Filtrage strict par type: ${beforeCount} → ${filteredResults.length} recette(s) pour "${typeRepas}"`);
     }
 
     // Mélanger les résultats pour avoir plus de variété (même si on a trié par random, on peut encore mélanger)

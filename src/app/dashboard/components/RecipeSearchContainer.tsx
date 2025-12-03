@@ -127,7 +127,8 @@ export default function RecipeSearchContainer() {
       console.log(`🏷️ [${searchType}] Filtres:`, filtersParam);
 
       // Extraire typeRepas et jourSemaine des filtres si présents
-      const typeRepasFilter = filters.find(f => ['dejeuner', 'diner', 'souper'].includes(f));
+      // Inclure tous les alias possibles (avec/sans accents, anglais)
+      const typeRepasFilter = filters.find(f => ['dejeuner', 'déjeuner', 'petit-dejeuner', 'petit-déjeuner', 'diner', 'dîner', 'lunch', 'souper', 'dinner'].includes(f));
       const jourSemaineFilter = filters.find(f => f.startsWith('jour-'));
       const jourSemaine = jourSemaineFilter ? jourSemaineFilter.replace('jour-', '') : '';
       
