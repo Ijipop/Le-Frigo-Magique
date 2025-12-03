@@ -3,6 +3,7 @@
  * Permet une gestion d'erreurs centralisée et cohérente
  */
 
+import { NextResponse } from "next/server";
 import { logger } from "./logger";
 
 export class ApiError extends Error {
@@ -58,8 +59,9 @@ export class InternalServerError extends ApiError {
 /**
  * Handler d'erreurs centralisé pour les routes API
  * Convertit toutes les erreurs en réponses HTTP standardisées
+ * Utilise NextResponse pour une meilleure compatibilité avec Next.js
  */
-export function handleApiError(error: unknown): Response {
+export function handleApiError(error: unknown): NextResponse {
   // Si c'est déjà une ApiError, on la retourne directement
   if (error instanceof ApiError) {
     logger.warn(`Erreur API: ${error.message}`, {
@@ -68,15 +70,43 @@ export function handleApiError(error: unknown): Response {
       details: error.details,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: error.code || "API_ERROR",
-        message: error.message,
-        ...(error.details ? { details: error.details } : {}),
-      }),
+    // Sérialiser les détails de manière sécurisée
+    let serializedDetails: any = undefined;
+    if (error.details) {
+      try {
+        // Filtrer les valeurs undefined et null pour éviter les problèmes de sérialisation
+        const details = error.details as any;
+        if (typeof details === "object" && !Array.isArray(details)) {
+          serializedDetails = Object.fromEntries(
+            Object.entries(details).filter(([_, v]) => v !== undefined && v !== null)
+          );
+          // Si l'objet est vide après filtrage, ne pas l'inclure
+          if (Object.keys(serializedDetails).length === 0) {
+            serializedDetails = undefined;
+          }
+        } else {
+          serializedDetails = details;
+        }
+      } catch (e) {
+        // Si la sérialisation échoue, ne pas inclure les détails
+        logger.warn("Impossible de sérialiser les détails de l'erreur", { error: e });
+        serializedDetails = undefined;
+      }
+    }
+
+    const responseBody: any = {
+      error: error.code || "API_ERROR",
+      message: error.message || "Une erreur est survenue",
+    };
+
+    if (serializedDetails !== undefined) {
+      responseBody.details = serializedDetails;
+    }
+
+    return NextResponse.json(
+      responseBody,
       {
         status: error.statusCode,
-        headers: { "Content-Type": "application/json" },
       }
     );
   }
@@ -84,15 +114,14 @@ export function handleApiError(error: unknown): Response {
   // Si c'est une erreur Zod (validation)
   if (error && typeof error === "object" && "issues" in error) {
     logger.warn("Erreur de validation Zod", { error });
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         error: "VALIDATION_ERROR",
         message: "Erreur de validation des données",
         details: error,
-      }),
+      },
       {
         status: 400,
-        headers: { "Content-Type": "application/json" },
       }
     );
   }
@@ -105,16 +134,15 @@ export function handleApiError(error: unknown): Response {
     stack: errorStack,
   });
 
-  return new Response(
-    JSON.stringify({
+  return NextResponse.json(
+    {
       error: "INTERNAL_ERROR",
       message: "Une erreur inattendue s'est produite",
       // En production, ne pas exposer les détails de l'erreur
       ...(process.env.NODE_ENV === "development" && { details: errorMessage }),
-    }),
+    },
     {
       status: 500,
-      headers: { "Content-Type": "application/json" },
     }
   );
 }
