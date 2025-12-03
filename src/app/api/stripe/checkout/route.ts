@@ -5,8 +5,9 @@ import { UnauthorizedError, InternalServerError, withErrorHandling } from "../..
 import { logger } from "../../../../../lib/utils/logger";
 
 // Initialiser Stripe
+// Utiliser la version d'API par défaut de la bibliothèque Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-06-20",
+  apiVersion: "2025-11-17.clover",
 });
 
 export const runtime = "nodejs";
