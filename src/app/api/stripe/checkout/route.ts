@@ -81,11 +81,59 @@ export const POST = withErrorHandling(async () => {
       sessionId: session.id,
     });
   } catch (error) {
-    logger.error("Erreur lors de la création de la session Stripe Checkout", error instanceof Error ? error : new Error(String(error)), {
-      userId,
-    });
+    // Détecter les erreurs Stripe (elles ont une structure spécifique)
+    // Les erreurs Stripe sont des instances de Stripe.errors.StripeError
+    // Elles ont généralement: type, code, message, raw
+    const isStripeError = error && 
+      typeof error === "object" && 
+      ("type" in error || "code" in error || (error instanceof Error && (error.message.includes("No such price") || error.message.includes("Stripe"))));
+    
+    let errorMessage = "Erreur lors de la création de la session de paiement";
+    let errorDetails: Record<string, any> = {};
 
-    throw new InternalServerError("Erreur lors de la création de la session de paiement");
+    if (isStripeError) {
+      const stripeError = error as any;
+      // Les erreurs Stripe ont généralement une propriété 'message' directe
+      // Exemple: "No such price: 'price_xxx'"
+      errorMessage = stripeError.message || 
+        stripeError.raw?.message || 
+        `Erreur Stripe: ${stripeError.type || stripeError.code || "Erreur inconnue"}`;
+      
+      // Sérialiser uniquement les propriétés simples et sérialisables
+      if (stripeError.type) errorDetails.type = String(stripeError.type);
+      if (stripeError.code) errorDetails.code = String(stripeError.code);
+      if (stripeError.message) errorDetails.message = String(stripeError.message);
+      
+      logger.error("Erreur Stripe lors de la création de la session Checkout", error instanceof Error ? error : new Error(errorMessage), {
+        userId,
+        isStripeError: true,
+        stripeErrorType: stripeError.type,
+        stripeErrorCode: stripeError.code,
+        stripeErrorMessage: stripeError.message,
+      });
+    } else if (error instanceof Error) {
+      errorMessage = error.message || "Erreur lors de la création de la session de paiement";
+      errorDetails.message = errorMessage;
+      logger.error("Erreur lors de la création de la session Stripe Checkout", error, {
+        userId,
+        isStripeError: false,
+      });
+    } else {
+      errorMessage = String(error) || "Erreur inconnue lors de la création de la session de paiement";
+      errorDetails.error = errorMessage;
+      logger.error("Erreur inconnue lors de la création de la session Stripe Checkout", new Error(errorMessage), {
+        userId,
+      });
+    }
+
+    // S'assurer que le message n'est jamais vide
+    if (!errorMessage || errorMessage.trim() === "") {
+      errorMessage = "Erreur lors de la création de la session de paiement";
+    }
+
+    // Retourner une erreur avec le message détaillé
+    // Le message sera correctement sérialisé par handleApiError
+    throw new InternalServerError(errorMessage, errorDetails);
   }
 });
 

@@ -30,9 +30,55 @@ export function GoPremiumButton({
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Erreur inconnue" }));
-        console.error("Erreur Checkout:", errorData);
-        toast.error(errorData.message || "Erreur lors de la redirection vers le paiement");
+        let errorMessage = "Erreur lors de la redirection vers le paiement";
+        
+        try {
+          const errorText = await res.text();
+          console.log("Réponse d'erreur brute:", {
+            status: res.status,
+            statusText: res.statusText,
+            textLength: errorText.length,
+            textPreview: errorText.substring(0, 200),
+          });
+          
+          if (errorText && errorText.trim()) {
+            try {
+              const errorData = JSON.parse(errorText);
+              console.error("Erreur Checkout (JSON parsé):", {
+                status: res.status,
+                statusText: res.statusText,
+                errorData,
+                hasMessage: !!errorData.message,
+                hasError: !!errorData.error,
+                keys: Object.keys(errorData),
+              });
+              
+              // Essayer plusieurs propriétés pour trouver le message
+              errorMessage = errorData.message || 
+                            errorData.error || 
+                            errorData.details?.message ||
+                            (typeof errorData.details === 'string' ? errorData.details : null) ||
+                            `Erreur ${res.status}: ${res.statusText || "Erreur serveur"}`;
+            } catch (parseError) {
+              console.error("Erreur lors du parsing JSON:", parseError);
+              // Si ce n'est pas du JSON, utiliser le texte brut
+              errorMessage = errorText.length > 0 
+                ? `Erreur ${res.status}: ${errorText.substring(0, 100)}`
+                : `Erreur ${res.status}: ${res.statusText || "Erreur serveur"}`;
+            }
+          } else {
+            console.error("Erreur Checkout: Réponse vide ou invalide", {
+              status: res.status,
+              statusText: res.statusText,
+            });
+            errorMessage = `Erreur ${res.status}: ${res.statusText || "Erreur serveur"}`;
+          }
+        } catch (error) {
+          console.error("Erreur lors de la lecture de la réponse:", error);
+          errorMessage = `Erreur ${res.status}: ${res.statusText || "Erreur serveur"}`;
+        }
+        
+        toast.error(errorMessage);
         setLoading(false);
         return;
       }
