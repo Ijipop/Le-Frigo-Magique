@@ -599,12 +599,12 @@ export default function ListeEpicerie() {
         transition={{ duration: 0.4 }}
         className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700"
       >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 sm:flex-nowrap">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
               <List className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                 Liste d'épicerie
               </h2>
@@ -615,15 +615,16 @@ export default function ListeEpicerie() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {liste && liste.lignes.length > 0 && (
               <Button
                 onClick={() => setDeleteAllModal(true)}
                 variant="danger"
                 size="sm"
+                className="text-xs sm:text-sm px-2 sm:px-3"
               >
-                <Trash className="w-4 h-4 mr-1" />
-                Tout supprimer
+                <Trash className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+                <span className="hidden sm:inline">Tout supprimer</span>
               </Button>
             )}
             <Button
@@ -633,9 +634,10 @@ export default function ListeEpicerie() {
               }}
               variant="primary"
               size="sm"
+              className="text-xs sm:text-sm px-2 sm:px-3"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Ajouter
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Ajouter</span>
             </Button>
           </div>
         </div>

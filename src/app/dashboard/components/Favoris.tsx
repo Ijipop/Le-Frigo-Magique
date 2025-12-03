@@ -254,38 +254,38 @@ export default function Favoris() {
                       {favorite.snippet}
                     </p>
                   )}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0 flex-1">
                       {favorite.source && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {favorite.source}
                         </span>
                       )}
                       {favorite.estimatedCost && (
-                        <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                        <span className="text-xs text-orange-600 dark:text-orange-400 font-medium whitespace-nowrap">
                           ~{favorite.estimatedCost.toFixed(2)}$
                         </span>
                       )}
                       {favorite.servings && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           {favorite.servings} portion{favorite.servings > 1 ? "s" : ""}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                       <motion.button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAddToWeek(favorite);
                         }}
                         disabled={addingToWeek.has(favorite.url)}
-                        className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                        className="p-1.5 sm:p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex-shrink-0"
                         title="Ajouter aux recettes de la semaine"
                       >
                         {addingToWeek.has(favorite.url) ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
                         ) : (
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         )}
                       </motion.button>
                       <motion.button
@@ -294,13 +294,13 @@ export default function Favoris() {
                           handleDelete(favorite);
                         }}
                         disabled={deleting.has(favorite.id)}
-                        className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                        className="p-1.5 sm:p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex-shrink-0"
                         title="Retirer des favoris"
                       >
                         {deleting.has(favorite.id) ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
                         ) : (
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         )}
                       </motion.button>
                     </div>
