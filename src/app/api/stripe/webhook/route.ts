@@ -306,3 +306,16 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * GET - Route de test pour vérifier que le webhook est accessible
+ * (À supprimer en production si vous voulez)
+ */
+export async function GET() {
+  return NextResponse.json({
+    message: "Webhook Stripe est actif",
+    endpoint: "/api/stripe/webhook",
+    method: "POST",
+    note: "Cette route accepte uniquement les requêtes POST depuis Stripe",
+  });
+}
+

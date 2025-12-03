@@ -1,3 +1,4 @@
+
 import { prisma } from "../prisma";
 
 export interface PremiumStatus {
@@ -70,7 +71,7 @@ export async function isPremium(
           isPremium: isActive,
           source: isActive ? "stripe" : null,
           premiumUntil: subscription.currentPeriodEnd,
-          isExpired: !isActive && subscription.status !== "active",
+          isExpired: !isActive, // Cohérent avec la logique legacy
         };
       }
     } catch (error) {
