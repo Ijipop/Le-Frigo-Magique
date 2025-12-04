@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown, Trash, Store, List } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Edit2, Check, X, DollarSign, Tag, Star, Sparkles, ChevronDown, Trash, Store, List, ArrowUpDown, ArrowUpAZ } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
@@ -62,6 +62,23 @@ export default function ListeEpicerie() {
   const [dynamicTotal, setDynamicTotal] = useState<number>(0); // Initialisé à 0 par défaut
   const [isListExpanded, setIsListExpanded] = useState<boolean>(true); // État pour l'accordéon de la liste
   const [ingredientPrices, setIngredientPrices] = useState<Record<string, number>>({}); // Cache des prix unitaires
+  
+  // Charger la préférence de tri depuis localStorage
+  const [sortBy, setSortBy] = useState<"default" | "alphabetical">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("liste-epicerie-sort");
+      return (saved === "alphabetical" || saved === "default") ? saved : "default";
+    }
+    return "default";
+  });
+  
+  // Sauvegarder la préférence de tri dans localStorage
+  const handleSortChange = (newSort: "default" | "alphabetical") => {
+    setSortBy(newSort);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("liste-epicerie-sort", newSort);
+    }
+  };
 
   // Charger les épiceries sélectionnées depuis localStorage
   useEffect(() => {
@@ -768,21 +785,36 @@ export default function ListeEpicerie() {
         {/* Menu accordéon pour la liste d'items */}
         {liste && liste.lignes.length > 0 && (
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-            <button
-              onClick={() => setIsListExpanded(!isListExpanded)}
-              className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-900 dark:text-white">
-                  Items de la liste ({liste.lignes.length})
-                </span>
-              </div>
-              <ChevronDown
-                className={`w-5 h-5 text-gray-400 transition-transform ${
-                  isListExpanded ? "transform rotate-180" : ""
-                }`}
-              />
-            </button>
+            <div className="w-full flex items-center justify-between p-3">
+              <button
+                onClick={() => setIsListExpanded(!isListExpanded)}
+                className="flex-1 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors p-2 -m-2"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Items de la liste ({liste.lignes.length})
+                  </span>
+                </div>
+                <ChevronDown
+                  className={`w-5 h-5 text-gray-400 transition-transform ${
+                    isListExpanded ? "transform rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {liste.lignes.length > 0 && (
+                <motion.button
+                  onClick={() => handleSortChange(sortBy === "default" ? "alphabetical" : "default")}
+                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ml-2"
+                  title={sortBy === "default" ? "Trier par ordre alphabétique" : "Trier par ordre d'ajout"}
+                >
+                  {sortBy === "default" ? (
+                    <ArrowUpAZ className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                  ) : (
+                    <ArrowUpDown className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+                  )}
+                </motion.button>
+              )}
+            </div>
 
             <AnimatePresence>
               {isListExpanded && (
@@ -794,7 +826,14 @@ export default function ListeEpicerie() {
                   className="overflow-hidden"
                 >
                   <div className="pt-4 space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                    {liste?.lignes.map((ligne, index) => {
+                    {[...(liste?.lignes || [])]
+                      .sort((a, b) => {
+                        if (sortBy === "alphabetical") {
+                          return a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" });
+                        }
+                        return 0; // Ordre par défaut (ordre d'ajout)
+                      })
+                      .map((ligne, index) => {
               const deal = getBestDealForIngredient(ligne.nom);
               const hasDeal = deal.price !== null;
               const quantite = ligne.quantite || 1;

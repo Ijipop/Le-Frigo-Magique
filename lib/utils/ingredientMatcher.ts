@@ -231,10 +231,22 @@ export function matchIngredients(
       // Exclusions pour "mais" / "maïs" : exclure "mais soufflé", "popcorn", etc.
       if (searchWord === 'mais' || searchWord === 'mais' || searchWord === 'corn') {
         const excludedPatterns = ['mais souffle', 'mais soufflé', 'popcorn', 'pop corn', 'mais eclate', 'mais éclaté',
-                                  'mais souffle', 'orville', 'mais en conserve', 'corn souffle', 'corn soufflé'];
+                                  'mais souffle', 'orville', 'corn souffle', 'corn soufflé', 'souffle', 'soufflé'];
         const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
         if (isExcluded) {
           return false; // Exclure les produits transformés à base de maïs
+        }
+      }
+      
+      // Exclusions pour "fecule" / "fécule" : exclure les produits transformés
+      if (searchWord === 'fecule' || searchWord === 'fécule' || searchWord === 'starch') {
+        // Si le produit contient "mais" mais aussi "souffle" ou "popcorn", c'est un faux positif
+        if (normalized2.includes('mais') || normalized2.includes('corn')) {
+          const excludedPatterns = ['souffle', 'soufflé', 'popcorn', 'pop corn', 'eclate', 'éclaté'];
+          const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
+          if (isExcluded) {
+            return false; // Exclure "mais soufflé" quand on cherche "fécule de maïs"
+          }
         }
       }
       
@@ -589,12 +601,46 @@ export function findMatchesInFlyerItems(
       matchScore: number;
     }> = [];
 
+    // 🎯 NOUVELLE LOGIQUE STRICTE : Extraire tous les mots significatifs de l'ingrédient
+    const stopWords = ['de', 'le', 'la', 'les', 'du', 'des', 'et', 'ou', 'the', 'of', 'and', 'or', 'a', 'an', 'en', 'au', 'aux', 'a', 'c'];
+    const packagingWords = ['piece', 'pieces', 'set', 'sets', 'pack', 'packs', 'packet', 'packets', 'box', 'boxes', 
+                            'bag', 'bags', 'bottle', 'bottles', 'can', 'cans', 'jar', 'jars', 'container', 'containers',
+                            'unit', 'units', 'item', 'items', 'pcs', 'pc', 'ct', 'count', 'counts', 'pkg', 'pkgs'];
+    
+    // Extraire les mots significatifs de l'ingrédient (exclure stop words et packaging words)
+    const ingredientSignificantWords = normalizedIngredient
+      .split(/\s+/)
+      .filter(w => w.length >= 2 && !stopWords.includes(w) && !packagingWords.includes(w));
+    
+    // Si l'ingrédient n'a pas de mots significatifs, ignorer
+    if (ingredientSignificantWords.length === 0) {
+      logger.debug(`Ingrédient ignoré (pas de mots significatifs): "${ingredient}"`, { ingredient });
+      continue;
+    }
+
     for (const item of flyerItems) {
       const itemName = item.name || "";
       if (!itemName) continue;
       
       const normalizedItemName = normalizeIngredientName(itemName);
-
+      
+      // 🎯 VÉRIFICATION STRICTE PRINCIPALE : TOUS les mots significatifs doivent être présents dans le produit
+      // Cette logique s'applique à TOUS les ingrédients sans exception
+      const allWordsPresent = ingredientSignificantWords.every(word => {
+        // Vérifier que le mot est présent comme mot complet (boundary) - pas juste une partie d'un mot
+        const wordRegex = new RegExp(`\\b${word}\\b`, 'i');
+        return wordRegex.test(normalizedItemName);
+      });
+      
+      // Si tous les mots ne sont pas présents, ignorer ce produit immédiatement
+      // C'est la condition PRINCIPALE qui s'applique à TOUS les ingrédients
+      if (!allWordsPresent) {
+        continue;
+      }
+      
+      // Maintenant que tous les mots sont présents, vérifier les exclusions spécifiques
+      // On utilise matchIngredients seulement pour les règles d'exclusion, pas pour le matching de base
+      // car le matching de base est déjà fait par la vérification stricte ci-dessus
       if (matchIngredients(normalizedIngredient, normalizedItemName)) {
         // Vérifier les faux positifs courants
         const ingredientWord = normalizedIngredient.split(/\s+/)[0]; // Premier mot de l'ingrédient
@@ -612,6 +658,9 @@ export function findMatchesInFlyerItems(
           'papier': ['aluminium', 'aluminum', 'foil', 'wax', 'cire', 'parchemin', 'parchment', 'sulfurise', 'sulfurized'],
           'toilette': ['colour', 'color', 'coloring', 'coloration', 'hair', 'cheveux', 'shimmering', 'olia', 'feria', 'ammonia', 'ammoniaque'],
           'toilettes': ['colour', 'color', 'coloring', 'coloration', 'hair', 'cheveux', 'shimmering', 'olia', 'feria', 'ammonia', 'ammoniaque'],
+          'mais': ['souffle', 'soufflé', 'popcorn', 'eclate', 'éclaté', 'orville', 'corn souffle'],
+          'maïs': ['souffle', 'soufflé', 'popcorn', 'eclate', 'éclaté', 'orville', 'corn souffle'],
+          'fecule': ['souffle', 'soufflé', 'popcorn', 'eclate', 'éclaté'],
         };
         
         // Vérifier si c'est un faux positif
@@ -644,6 +693,24 @@ export function findMatchesInFlyerItems(
                 continue;
               }
             }
+          } else if (ingredientWord === 'fecule' || ingredientWord === 'fécule') {
+            // Pour "fécule de maïs", exclure les produits transformés (maïs soufflé, popcorn, etc.)
+            const hasMais = normalizedItemName.includes('mais') || normalizedItemName.includes('corn');
+            const hasExcludedPattern = patterns.some(pattern => normalizedItemName.includes(pattern));
+            
+            // Si le produit contient "mais" ET un pattern exclu (soufflé, popcorn, etc.), c'est un faux positif
+            // Ex: "mais soufflé" ne doit pas matcher "fécule de maïs"
+            if (hasMais && hasExcludedPattern) {
+              logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}" (fécule de maïs vs maïs soufflé)`, { ingredient, itemName });
+              continue;
+            }
+          } else if (ingredientWord === 'mais' || ingredientWord === 'maïs') {
+            // Pour "maïs" seul, exclure les produits transformés
+            const hasExcludedPattern = patterns.some(pattern => normalizedItemName.includes(pattern));
+            if (hasExcludedPattern) {
+              logger.debug(`Faux positif évité: "${ingredient}" → "${itemName}" (maïs vs maïs soufflé)`, { ingredient, itemName });
+              continue;
+            }
           } else {
             // Pour les autres mots, utiliser la logique normale
             const isFalsePositive = patterns.some(pattern => 
@@ -662,67 +729,12 @@ export function findMatchesInFlyerItems(
           matchScore = 100; // Match exact
         } else if (normalizedItemName.includes(normalizedIngredient)) {
           // L'item contient l'ingrédient complet
-          const ingredientWords = normalizedIngredient.split(/\s+/).filter(w => w.length >= 2);
-          
-          // Pour les ingrédients d'un seul mot (ex: "biere"), être plus permissif
-          if (ingredientWords.length === 1) {
-            const word = ingredientWords[0];
-            // Si le mot fait au moins 4 caractères, c'est un bon match
-            if (word.length >= 4) {
-              matchScore = 80;
-            } else if (word.length >= 3) {
-              matchScore = 60; // Mots de 3 caractères acceptés mais score plus bas
-            }
-          } else {
-            // Pour plusieurs mots, vérifier que tous les mots significatifs matchent
-            // Assouplir : accepter si au moins un mot significatif (4+ chars) matche
-            const significantWords = ingredientWords.filter(w => w.length >= 4);
-            if (significantWords.length > 0) {
-              const matchingSignificantWords = significantWords.filter(word => 
-                normalizedItemName.includes(word)
-              );
-              // Si au moins un mot significatif matche, c'est un bon match
-              matchScore = matchingSignificantWords.length > 0 ? 70 : 50;
-            } else {
-              // Si pas de mots significatifs, vérifier tous les mots
-              const allWordsMatch = ingredientWords.every(word => 
-                normalizedItemName.includes(word)
-              );
-              matchScore = allWordsMatch ? 60 : 45;
-            }
-          }
+          matchScore = 90; // Tous les mots sont présents et l'item contient l'ingrédient complet
         } else if (normalizedIngredient.includes(normalizedItemName)) {
-          matchScore = 60; // L'ingrédient contient l'item
+          matchScore = 80; // L'ingrédient contient l'item (moins probable mais possible)
         } else {
-          // Match partiel - vérifier les mots communs
-          const ingredientWords = normalizedIngredient.split(/\s+/).filter(w => w.length >= 3);
-          const itemWords = normalizedItemName.split(/\s+/).filter(w => w.length >= 3);
-          
-          // Trouver les mots communs
-          const commonWords = ingredientWords.filter(w1 => 
-            itemWords.some(w2 => w1 === w2 || w1.includes(w2) || w2.includes(w1))
-          );
-          
-          // Pour un seul mot dans l'ingrédient, accepter si le mot matche
-          if (ingredientWords.length === 1 && commonWords.length >= 1) {
-            matchScore = 50; // Match partiel acceptable pour un seul mot
-          } else if (commonWords.length >= 2) {
-            matchScore = 40; // Match partiel avec 2+ mots communs
-          } else if (commonWords.length === 1 && ingredientWords.length === 1) {
-            // Un seul mot qui matche partiellement - accepter si le mot fait au moins 3 chars (assoupli)
-            const word = ingredientWords[0];
-            if (word.length >= 3) {
-              matchScore = 45;
-            }
-          } else if (commonWords.length >= 1) {
-            // Au moins un mot commun - accepter avec un score plus bas
-            matchScore = 40;
-          }
-        }
-        
-        // Ne pas accepter les scores trop bas (sauf pour les mots courts significatifs)
-        if (matchScore < 40) {
-          continue;
+          // Tous les mots significatifs sont présents mais l'ordre/format diffère
+          matchScore = 85; // Bon match car tous les mots sont présents
         }
 
         // Ajouter TOUS les matches qui passent le seuil (pas seulement le meilleur)

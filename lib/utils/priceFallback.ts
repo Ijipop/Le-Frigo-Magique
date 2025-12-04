@@ -168,6 +168,8 @@ const FALLBACK_PRICES: Record<string, Record<string, number>> = {
     "haricots": 1.49,
     "haricots rouges": 1.49,
     "haricots noirs": 1.49,
+    "haricots blancs": 1.49,
+    "boîte de haricots blancs": 1.49,
     "maïs en conserve": 1.29,
     thon: 2.99,
     "thon en conserve": 2.99,
