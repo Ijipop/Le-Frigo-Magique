@@ -57,6 +57,7 @@ export async function GET() {
       include: {
         ligneListes: {
           select: {
+            nom: true,
             prixEstime: true,
             quantite: true,
           },
