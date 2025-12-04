@@ -227,17 +227,36 @@ function adjustPriceForQuantity(
   }
   
   // Pour les tasses, cuillères, etc.
+  // ATTENTION: Pour le beurre et produits solides vendus par poids, 
+  // le prix de base est pour un bloc/paquet (ex: 454g pour beurre), pas pour 1L
   if (unitLower.includes("tasse")) {
-    return (basePrice / 1000) * (quantity * 250);
+    // Pour produits solides (beurre, etc.), traiter comme poids (454g par bloc)
+    return (basePrice / 454) * (quantity * 250);
   } else if (unitLower.includes("soupe") || unitLower.includes("c. à soupe")) {
-    return (basePrice / 1000) * (quantity * 15);
+    // Pour beurre: prix pour 454g, donc 1 c. à soupe (15g) = (basePrice / 454) * 15
+    return (basePrice / 454) * (quantity * 15);
   } else if (unitLower.includes("thé") || unitLower.includes("c. à thé")) {
-    return (basePrice / 1000) * (quantity * 5);
+    return (basePrice / 454) * (quantity * 5);
   }
 
-  // Pour les unités comme "tranche", "gousse", "unité"
-  if (unitLower.includes("tranche") || unitLower.includes("gousse") || unitLower.includes("unité")) {
-    return (basePrice / 12) * quantity; // Assumer un paquet de 12
+  // Pour les unités comme "tranche", "gousse" - utiliser une fraction du prix
+  if (unitLower.includes("tranche") || unitLower.includes("gousse")) {
+    // Pour le bacon: un paquet contient généralement 12-16 tranches
+    // Assumer 12 tranches par paquet pour être conservateur
+    const itemsPerPackage = unitLower.includes("tranche") ? 12 : 10; // Bacon = 12 tranches, autres = 10 unités
+    return (basePrice / itemsPerPackage) * quantity;
+  }
+  
+  // Pour "unité" - vérifier si c'est un produit complet (boîte, paquet) ou une partie
+  // Si c'est "1 unité" d'un produit vendu par unité (boîte, paquet), le prix est déjà pour une unité complète
+  if (unitLower.includes("unité")) {
+    if (quantity === 1) {
+      // 1 unité = prix complet (ex: 1 boîte de haricots = prix de la boîte)
+      return basePrice;
+    } else {
+      // Plusieurs unités = multiplier le prix (ex: 2 boîtes = 2 × prix)
+      return basePrice * quantity;
+    }
   }
 
   // Par défaut, utiliser une fraction conservatrice

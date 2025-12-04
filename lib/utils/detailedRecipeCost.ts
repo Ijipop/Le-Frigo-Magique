@@ -275,27 +275,55 @@ function adjustPriceForUnit(
   }
   
   // Pour les tasses, cuillères, etc. - utiliser des conversions approximatives
-  // Une tasse = environ 250ml, donc on traite comme des ml
+  // ATTENTION: Pour le beurre et autres produits solides vendus par poids, 
+  // le prix de base est pour un bloc/paquet (ex: 454g pour beurre), pas pour 1L
   if (unitLower.includes("tasse") || unitLower.includes("cuillère")) {
-    // Convertir en ml approximatif
-    let mlEquivalent = quantity;
-    if (unitLower.includes("tasse")) {
-      mlEquivalent = quantity * 250;
-    } else if (unitLower.includes("soupe") || unitLower.includes("c. à soupe")) {
-      mlEquivalent = quantity * 15;
+    // Pour le beurre et produits similaires vendus par poids, traiter différemment
+    // Un bloc de beurre = 454g, donc 1 c. à soupe (15g) = (basePrice / 454) * 15
+    if (unitLower.includes("soupe") || unitLower.includes("c. à soupe")) {
+      // Pour beurre: prix pour 454g, donc 1 c. à soupe (15g) = (basePrice / 454) * 15
+      // Pour liquides: prix pour 1L, donc 1 c. à soupe (15ml) = (basePrice / 1000) * 15
+      // On assume que si c'est un produit solide (beurre, crème, etc.), c'est vendu par poids
+      // Sinon, c'est un liquide vendu par volume
+      // Pour simplifier, on traite les cuillères à soupe comme des portions de 15g/15ml
+      // Le prix de base est généralement pour un paquet/bloc, donc on divise par un facteur raisonnable
+      // Exemple beurre: 5.99$ pour 454g, 1 c. à soupe = 15g → (5.99 / 454) * 15 ≈ 0.20$
+      return (basePrice / 454) * (quantity * 15); // Assumer que le prix est pour 454g (bloc standard)
     } else if (unitLower.includes("thé") || unitLower.includes("c. à thé") || unitLower.includes("café")) {
-      mlEquivalent = quantity * 5;
+      // 1 c. à thé = 5g/5ml
+      return (basePrice / 454) * (quantity * 5);
+    } else if (unitLower.includes("tasse")) {
+      // 1 tasse = 250ml/g
+      return (basePrice / 454) * (quantity * 250);
     }
-    // Traiter comme des ml (prix pour 1L, donc diviser par 1000)
-    return (basePrice / 1000) * mlEquivalent;
   }
   
   // Pour les unités comme "tranche", "gousse", "tête", "unité" - utiliser une fraction du prix
   // Exemple: 2 gousses d'ail sur un paquet de 10 = 2/10 du prix
-  if (unitLower.includes("tranche") || unitLower.includes("gousse") || unitLower.includes("tête") || unitLower.includes("unité")) {
-    // Assumer qu'une unité = environ 1/10 à 1/15 du prix de base (pour un paquet/container typique)
-    // Exemple: gousses d'ail = 1.99$ pour ~10 gousses, donc 2 gousses = (1.99 / 10) * 2 = 0.40$
-    return (basePrice / 12) * quantity;
+  if (unitLower.includes("tranche") || unitLower.includes("gousse") || unitLower.includes("tête")) {
+    // Pour le bacon: un paquet contient généralement 12-16 tranches
+    // Assumer 12 tranches par paquet pour être conservateur
+    // Exemple: 7.99$ pour 12 tranches, 2 tranches = (7.99 / 12) * 2 ≈ 1.33$
+    const itemsPerPackage = unitLower.includes("tranche") ? 12 : 10; // Bacon = 12 tranches, autres = 10 unités
+    return (basePrice / itemsPerPackage) * quantity;
+  }
+  
+  // Pour "unité" - vérifier si c'est un produit complet (boîte, paquet) ou une partie
+  // Si le nom contient "boîte", "paquet", "conteneur", etc., c'est probablement un produit complet
+  // Dans ce cas, le prix de base est déjà pour une unité complète, donc on ne divise pas
+  if (unitLower.includes("unité")) {
+    // Vérifier le contexte : si c'est "1 unité" d'un produit vendu par unité (boîte, paquet), 
+    // le prix est déjà pour une unité complète
+    // Pour les conserves (boîtes), le prix est généralement pour une boîte complète
+    // Donc si quantity = 1, utiliser le prix de base directement
+    // Si quantity > 1, multiplier le prix de base
+    if (quantity === 1) {
+      // 1 unité = prix complet (ex: 1 boîte de haricots = prix de la boîte)
+      return basePrice;
+    } else {
+      // Plusieurs unités = multiplier le prix (ex: 2 boîtes = 2 × prix)
+      return basePrice * quantity;
+    }
   }
 
   // Pour les autres unités non reconnues, utiliser une fraction très conservatrice

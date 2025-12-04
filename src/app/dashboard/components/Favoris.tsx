@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Heart, ExternalLink, Loader2, Trash2, ChefHat, Plus } from "lucide-react";
+import { Heart, ExternalLink, Loader2, Trash2, ChefHat, Plus, ArrowUpDown, ArrowUpAZ } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -22,6 +22,23 @@ export default function Favoris() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [addingToWeek, setAddingToWeek] = useState<Set<string>>(new Set());
+  
+  // Charger la préférence de tri depuis localStorage
+  const [sortBy, setSortBy] = useState<"date" | "alphabetical">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("favoris-sort");
+      return (saved === "alphabetical" || saved === "date") ? saved : "date";
+    }
+    return "date";
+  });
+  
+  // Sauvegarder la préférence de tri dans localStorage
+  const handleSortChange = (newSort: "date" | "alphabetical") => {
+    setSortBy(newSort);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("favoris-sort", newSort);
+    }
+  };
 
   useEffect(() => {
     loadFavorites();
@@ -176,9 +193,22 @@ export default function Favoris() {
           </h2>
         </div>
         {favorites.length > 0 && (
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {favorites.length} recette{favorites.length > 1 ? "s" : ""}
-          </span>
+          <div className="flex items-center gap-3">
+            <motion.button
+              onClick={() => handleSortChange(sortBy === "date" ? "alphabetical" : "date")}
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              title={sortBy === "date" ? "Trier par ordre alphabétique" : "Trier par date"}
+            >
+              {sortBy === "date" ? (
+                <ArrowUpAZ className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+              ) : (
+                <ArrowUpDown className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+              )}
+            </motion.button>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {favorites.length} recette{favorites.length > 1 ? "s" : ""}
+            </span>
+          </div>
         )}
       </motion.div>
 
@@ -199,7 +229,16 @@ export default function Favoris() {
       ) : (
         <div className="space-y-2.5 max-h-[600px] overflow-y-auto overflow-x-hidden pr-3 pl-1">
           <AnimatePresence>
-            {favorites.map((favorite, index) => (
+            {[...favorites]
+              .sort((a, b) => {
+                if (sortBy === "alphabetical") {
+                  return a.titre.localeCompare(b.titre, "fr", { sensitivity: "base" });
+                } else {
+                  // Tri par date (plus récent en premier)
+                  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                }
+              })
+              .map((favorite, index) => (
               <motion.div
                 key={favorite.id}
                 initial={{ opacity: 0, x: -20 }}

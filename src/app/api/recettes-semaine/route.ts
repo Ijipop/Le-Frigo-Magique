@@ -758,7 +758,12 @@ async function addSpoonacularIngredientsToListeEpicerie(
   }
 
   // Ingrédients à exclure automatiquement (disponibles gratuitement au Québec)
-  const excludedIngredients = ['eau', 'water', 'eaux', 'waters'];
+  // Tout le monde a du sel et du poivre dans sa cuisine
+  const excludedIngredients = [
+    'eau', 'water', 'eaux', 'waters',
+    'sel', 'salt', 'sels', 'salts',
+    'poivre', 'pepper', 'poivres', 'peppers', 'black pepper', 'poivre noir'
+  ];
   
   // Filtrer les ingrédients (exclure ceux dans le garde-manger ET les ingrédients exclus)
   // Note: Les ingrédients sont déjà traduits en français par toGroceryItem
