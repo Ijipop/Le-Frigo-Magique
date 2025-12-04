@@ -93,14 +93,14 @@ export default function AccordionEpiceries({
           // Utiliser le prix en rabais si disponible
           total += currentPrice;
         } else {
-          // Sinon, utiliser le prix estimé de la liste ou le prix moyen du Québec
+          // 🎯 LOGIQUE SAAS PRO: Ignorer item.prixEstime, utiliser le fallback (prix du produit complet)
           const fallback = getFallbackPrice(item.nom);
-          total += item.prixEstime || fallback?.prix || 4.50;
+          total += fallback?.prix || 2.00;
         }
       } else {
-        // Pas de match, utiliser le prix estimé de la liste ou le prix moyen du Québec
+        // 🎯 LOGIQUE SAAS PRO: Ignorer item.prixEstime, utiliser le fallback (prix du produit complet)
         const fallback = getFallbackPrice(item.nom);
-        total += item.prixEstime || fallback?.prix || 4.50;
+        total += fallback?.prix || 2.00;
       }
     });
 
@@ -139,9 +139,10 @@ export default function AccordionEpiceries({
         }
       });
 
-      // Utiliser le meilleur prix trouvé, ou le prix estimé par défaut
+      // 🎯 LOGIQUE SAAS PRO: Utiliser le meilleur prix trouvé, ou le fallback (prix du produit complet)
+      // Ignorer item.prixEstime car il peut contenir des prix ajustés
       const fallback = getFallbackPrice(item.nom);
-      total += bestPrice !== null ? bestPrice : (item.prixEstime || fallback?.prix || 4.50);
+      total += bestPrice !== null ? bestPrice : (fallback?.prix || 2.00);
     });
 
     return total;
@@ -151,6 +152,20 @@ export default function AccordionEpiceries({
   useEffect(() => {
     const total = calculateGlobalTotal();
     onTotalChange(total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMerchants, dealsResults?.results.length, listeItems.length]);
+  
+  // 🎯 NOUVEAU: Écouter les demandes de recalcul forcé (quand on revient sur l'onglet)
+  useEffect(() => {
+    const handleForceRecalculate = () => {
+      const total = calculateGlobalTotal();
+      onTotalChange(total);
+    };
+    
+    window.addEventListener("force-recalculate-total", handleForceRecalculate);
+    return () => {
+      window.removeEventListener("force-recalculate-total", handleForceRecalculate);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMerchants, dealsResults?.results.length, listeItems.length]);
 
@@ -272,7 +287,14 @@ export default function AccordionEpiceries({
                       {merchantTotal.toFixed(2)}$ CAD
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {result.matches.length} rabais disponible{result.matches.length > 1 ? "s" : ""}
+                      {(() => {
+                        // Compter uniquement les rabais réels (ceux qui ont un current_price valide)
+                        const realDealsCount = consolidatedItems.filter(item => item.hasDeal).length;
+                        return realDealsCount;
+                      })()} rabais disponible{(() => {
+                        const realDealsCount = consolidatedItems.filter(item => item.hasDeal).length;
+                        return realDealsCount > 1 ? "s" : "";
+                      })()}
                     </span>
                   </div>
                 </div>

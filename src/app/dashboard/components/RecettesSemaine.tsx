@@ -6,6 +6,7 @@ import { Calendar, ExternalLink, Trash2, Loader2, Trash, Users, Heart, DollarSig
 import { motion, AnimatePresence } from "framer-motion";
 import Button from "../../../components/ui/button";
 import Modal from "../../../components/ui/modal";
+import { getFallbackPrice } from "../../../../lib/utils/priceFallback";
 
 interface RecetteSemaine {
   id: string;
@@ -59,21 +60,15 @@ export default function RecettesSemaine() {
         const result = await response.json();
         const liste = result.data;
         if (liste && liste.lignes) {
-          // Calculer le sous-total estimé (similaire à calculerTotal dans ListeEpicerie)
+          // 🎯 LOGIQUE SAAS PRO: Calculer le sous-total avec les prix du produit complet
+          // Utiliser le fallback (prix du produit complet) comme dans ListeEpicerie
           let totalAvecRabais = 0;
           liste.lignes.forEach((ligne: any) => {
-            const quantite = ligne.quantite || 1;
-            let prixUnitaireEstime = ligne.prixEstime;
-            
-            // Si pas de prix estimé, utiliser une estimation par défaut
-            if (prixUnitaireEstime === null || prixUnitaireEstime === 0) {
-              prixUnitaireEstime = 2.00; // Prix par défaut conservateur
-            }
-            
-            // Pour le sous-total estimé, utiliser le prix estimé du paquet/unité
-            // Le prix estimé est déjà le prix du paquet, pas besoin de multiplier par la quantité
-            // (on n'a pas accès aux deals ici, donc on utilise l'estimation)
-            totalAvecRabais += prixUnitaireEstime;
+            // Ignorer ligne.prixEstime car il peut contenir des prix ajustés
+            // Utiliser toujours le fallback (prix du produit complet)
+            const fallback = getFallbackPrice(ligne.nom);
+            const prixProduitComplet = fallback?.prix || 2.00;
+            totalAvecRabais += prixProduitComplet;
           });
           setSousTotalEpicerie(totalAvecRabais);
         } else {
@@ -118,6 +113,48 @@ export default function RecettesSemaine() {
     };
     
     window.addEventListener("epicerie-total-updated", handleEpicerieTotalUpdate);
+    
+    // 🎯 NOUVEAU: Charger le total depuis localStorage au montage si des épiceries sont sélectionnées
+    // Cela permet de récupérer le total même si on change d'onglet
+    const loadSavedTotal = () => {
+      try {
+        const savedMerchants = localStorage.getItem("selectedMerchants");
+        if (savedMerchants) {
+          const merchants = JSON.parse(savedMerchants) as string[];
+          if (merchants.length > 0) {
+            // Si des épiceries sont sélectionnées, déclencher un événement pour recalculer le total
+            // Le composant ListeEpicerie écoutera cet événement et mettra à jour le total
+            window.dispatchEvent(new CustomEvent("recalculate-epicerie-total"));
+          } else {
+            // Aucune épicerie sélectionnée, mettre le total à 0
+            setDynamicEpicerieTotal(0);
+          }
+        } else {
+          // Aucune épicerie sauvegardée, mettre le total à 0
+          setDynamicEpicerieTotal(0);
+        }
+      } catch (e) {
+        console.error("Erreur lors du chargement du total sauvegardé:", e);
+        setDynamicEpicerieTotal(0);
+      }
+    };
+    
+    loadSavedTotal();
+    
+    // 🎯 NOUVEAU: Écouter aussi les changements de visibilité de la page pour recalculer le total
+    // Cela permet de mettre à jour le total quand on revient sur l'onglet
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // La page est visible, recalculer le total
+        loadSavedTotal();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
     
     return () => {
       window.removeEventListener("recettes-semaine-updated", handleUpdate);
@@ -550,11 +587,23 @@ export default function RecettesSemaine() {
                           ) : null;
                         })()}
                         {(() => {
-                          // 🎯 NOUVEAU: Utiliser coutReel si disponible (coût réel depuis les ingrédients liés)
-                          // Sinon, utiliser estimatedCost comme fallback
-                          const cost = recette.coutReel !== null && recette.coutReel !== undefined && recette.coutReel > 0
-                            ? recette.coutReel
-                            : recette.estimatedCost;
+                          // 🎯 PRIORITÉ: Utiliser le prix de l'épicerie (le plus fiable)
+                          // 1. Si une seule recette et dynamicEpicerieTotal > 0, utiliser ce total
+                          // 2. Sinon, utiliser coutReel (calculé avec fallback - prix du produit complet)
+                          // 3. En dernier recours, utiliser estimatedCost
+                          
+                          let cost: number | null = null;
+                          
+                          // Si une seule recette et qu'on a un total d'épicerie, l'utiliser
+                          if (recettes.length === 1 && dynamicEpicerieTotal > 0) {
+                            cost = dynamicEpicerieTotal;
+                          } else if (recette.coutReel !== null && recette.coutReel !== undefined && recette.coutReel > 0) {
+                            // Utiliser coutReel (calculé avec fallback - prix du produit complet)
+                            cost = recette.coutReel;
+                          } else if (recette.estimatedCost !== null && recette.estimatedCost !== undefined && recette.estimatedCost > 0) {
+                            // En dernier recours, utiliser estimatedCost
+                            cost = recette.estimatedCost;
+                          }
                           
                           if (cost !== null && cost !== undefined && cost > 0) {
                             // Vérifier servings de manière robuste
@@ -563,7 +612,7 @@ export default function RecettesSemaine() {
                               : null;
                             const hasServings = servingsNum !== null && !isNaN(servingsNum) && servingsNum > 0;
                             
-                            // cost est le coût TOTAL de la recette (coutReel ou estimatedCost)
+                            // cost est le coût TOTAL de la recette
                             const costPerServing = hasServings && servingsNum !== null ? (cost / servingsNum) : null;
                             
                             return (

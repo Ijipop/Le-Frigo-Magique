@@ -8,6 +8,7 @@ import Modal from "../../../components/ui/modal";
 import Button from "../../../components/ui/button";
 import { matchIngredients } from "../../../../lib/utils/ingredientMatcher";
 import AccordionEpiceries from "./AccordionEpiceries";
+import { getFallbackPrice } from "../../../../lib/utils/priceFallback";
 
 interface LigneListe {
   id: string;
@@ -141,6 +142,40 @@ export default function ListeEpicerie() {
     // Dispatcher un événement pour mettre à jour le budget dans RecettesSemaine
     window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: finalTotal } }));
   };
+  
+  // 🎯 NOUVEAU: Écouter les demandes de recalcul du total (quand on revient sur l'onglet)
+  useEffect(() => {
+    const handleRecalculate = () => {
+      // Si des épiceries sont sélectionnées et qu'on a des deals, recalculer le total
+      if (selectedMerchants.size > 0 && dealsResults && dealsResults.results.length > 0) {
+        // Le total sera recalculé automatiquement par AccordionEpiceries via onTotalChange
+        // On déclenche juste un événement pour forcer le recalcul
+        const event = new CustomEvent("force-recalculate-total");
+        window.dispatchEvent(event);
+      } else if (selectedMerchants.size === 0) {
+        // Aucune épicerie sélectionnée, mettre le total à 0
+        setDynamicTotal(0);
+        window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+      }
+    };
+    
+    window.addEventListener("recalculate-epicerie-total", handleRecalculate);
+    
+    // Écouter aussi les changements de visibilité de la page pour recalculer le total
+    const handleVisibilityChange = () => {
+      if (!document.hidden && selectedMerchants.size > 0 && dealsResults && dealsResults.results.length > 0) {
+        // La page est visible et des épiceries sont sélectionnées, recalculer le total
+        handleRecalculate();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener("recalculate-epicerie-total", handleRecalculate);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [selectedMerchants, dealsResults]);
 
   const [formData, setFormData] = useState({
     nom: "",
@@ -599,58 +634,50 @@ export default function ListeEpicerie() {
   const calculerTotal = () => {
     if (!liste) return { total: 0, totalAvecRabais: 0, economie: 0 };
     
-    let total = 0; // Total estimé (prix estimé × quantité pour chaque item)
-    let totalAvecRabais = 0; // Total avec rabais
+    let total = 0; // Total estimé (prix du produit complet - paquet/boîte/sac)
+    let totalAvecRabais = 0; // Total avec rabais (prix du produit complet)
     let economie = 0; // Économie totale réalisée
     
     liste.lignes.forEach((ligne) => {
-      const quantite = ligne.quantite || 1;
-      let prixUnitaireEstime = ligne.prixEstime;
+      // 🎯 LOGIQUE SAAS PRO: Toujours utiliser le prix du PRODUIT COMPLET
+      // On ne peut pas acheter 2 tranches de bacon à l'épicerie, on doit acheter un paquet complet
+      // Le prix affiché doit être le prix du produit complet qu'on va acheter
+      // 
+      // IMPORTANT: On ignore ligne.prixEstime car il peut contenir des prix ajustés de l'ancienne logique
+      // On utilise toujours le fallback ou les deals pour obtenir le prix du produit complet
       
-      // Si pas de prix estimé, essayer d'utiliser le meilleur deal comme estimation
-      // Mais attention: le prix du deal est pour un produit complet, pas pour la quantité nécessaire
-      if (prixUnitaireEstime === null || prixUnitaireEstime === 0) {
-        const meilleurDeal = getBestDealForIngredient(ligne.nom);
-        if (meilleurDeal.price !== null) {
-          // Le prix du deal est pour un produit complet. On doit l'estimer pour la quantité nécessaire.
-          // Estimation conservatrice: on assume qu'un produit complet couvre environ 4-6 portions
-          // On utilise donc le prix du deal divisé par un facteur (ex: 5) comme estimation unitaire
-          const facteurEstimation = 5; // Un produit complet = ~5 portions
-          prixUnitaireEstime = meilleurDeal.price / facteurEstimation;
-        } else {
-          // Pas de deal non plus, utiliser un prix par défaut basé sur le type d'ingrédient
-          prixUnitaireEstime = 2.00; // Prix par défaut conservateur
-        }
-      }
-      
-      // 🎯 IMPORTANT: Le prix estimé est le prix du paquet/unité, pas multiplié par la quantité
-      // Exemple: Si on a besoin de 3 œufs et que le prix est 4.99$ pour une douzaine,
-      // on utilise 4.99$ (un seul paquet suffit), pas 4.99$ × 3
-      const prixPaquetEstime = prixUnitaireEstime;
-      total += prixPaquetEstime;
-      
-      // 🎯 IMPORTANT: Pour le total avec rabais, utiliser le prix du PRODUIT COMPLET (deal)
-      // Le prix des deals est pour un produit complet (paquet/unité), pas pour la quantité nécessaire.
-      // Exemple: Si on a besoin de 2 gousses d'ail et qu'un paquet d'ail (5-6 gousses) coûte 3.99$,
-      // on n'a besoin que d'UN paquet = 3.99$, pas de multiplier par 2.
+      // Toujours utiliser le meilleur deal ou le fallback (prix du produit complet)
       const meilleurDeal = getBestDealForIngredient(ligne.nom);
+      let prixProduitComplet = 0;
       
       if (meilleurDeal.price !== null) {
-        // Utiliser le prix du produit complet (pas multiplié par la quantité)
-        // Car un produit complet couvre généralement plusieurs portions/unités
-        totalAvecRabais += meilleurDeal.price;
+        prixProduitComplet = meilleurDeal.price;
       } else {
-        // Si pas de deal, utiliser le prix estimé du paquet (pas multiplié par la quantité)
-        totalAvecRabais += prixPaquetEstime;
+        // Utiliser le fallback (prix du produit complet)
+        const fallback = getFallbackPrice(ligne.nom);
+        prixProduitComplet = fallback?.prix || 2.00;
       }
       
-      // Calculer l'économie si on a un prix estimé et un deal
-      if (prixPaquetEstime > 0 && meilleurDeal.price !== null) {
-        // L'économie est la différence entre le prix estimé du paquet et le prix du deal
-        if (meilleurDeal.price < prixPaquetEstime) {
-          const economieLigne = prixPaquetEstime - meilleurDeal.price;
+      // Utiliser le prix du produit complet (pas ajusté)
+      // Exemple: 2 tranches de bacon → prix du paquet complet = 7.99$
+      total += prixProduitComplet;
+      
+      // Pour le total avec rabais, utiliser le prix du produit complet du deal
+      if (meilleurDeal.price !== null) {
+        // Prix du produit complet en rabais
+        totalAvecRabais += meilleurDeal.price;
+        
+        // Calculer l'économie basée sur les prix des produits complets
+        // Si on a un fallback et qu'il est plus élevé que le deal, calculer l'économie
+        const fallback = getFallbackPrice(ligne.nom);
+        const prixEstime = fallback?.prix || prixProduitComplet;
+        if (prixEstime > 0 && meilleurDeal.price < prixEstime) {
+          const economieLigne = prixEstime - meilleurDeal.price;
           economie += economieLigne;
         }
+      } else {
+        // Si pas de deal, utiliser le prix estimé du produit complet
+        totalAvecRabais += prixProduitComplet;
       }
     });
     
@@ -837,16 +864,30 @@ export default function ListeEpicerie() {
               const deal = getBestDealForIngredient(ligne.nom);
               const hasDeal = deal.price !== null;
               const quantite = ligne.quantite || 1;
-              // Le prix estimé est le prix du paquet/unité, pas multiplié par la quantité
-              const prixPaquetEstime = ligne.prixEstime || 0;
-              // Le prix du deal est aussi pour le paquet/unité complet
-              const prixPaquetRabais = hasDeal ? deal.price! : null;
-              // Calculer l'économie basée sur le prix du paquet estimé vs le prix du paquet en rabais
-              const economieParPaquet = hasDeal && prixPaquetEstime > 0 
-                ? Math.max(0, prixPaquetEstime - deal.price!) 
+              
+              // 🎯 LOGIQUE SAAS PRO: Toujours afficher le prix du PRODUIT COMPLET
+              // On ne peut pas acheter des portions à l'épicerie, on doit acheter le produit complet
+              // Exemple: 2 tranches de bacon → afficher 7.99$ (prix du paquet), pas 1.14$
+              //
+              // IMPORTANT: On ignore ligne.prixEstime car il peut contenir des prix ajustés de l'ancienne logique
+              // On utilise toujours le fallback ou les deals pour obtenir le prix du produit complet
+              
+              // Prix estimé du produit complet (paquet/boîte/sac)
+              let prixProduitComplet = 0;
+              if (hasDeal && deal.price !== null) {
+                prixProduitComplet = deal.price;
+              } else {
+                const fallback = getFallbackPrice(ligne.nom);
+                prixProduitComplet = fallback?.prix || 0;
+              }
+              
+              // Prix du deal du produit complet (pas ajusté)
+              const prixDealComplet = hasDeal ? deal.price! : null;
+              
+              // Calculer l'économie basée sur les prix des produits complets
+              const economieTotale = hasDeal && prixProduitComplet > 0 && prixDealComplet !== null
+                ? Math.max(0, prixProduitComplet - prixDealComplet)
                 : 0;
-              // L'économie totale est l'économie par paquet (on n'a besoin que d'un paquet)
-              const economieTotale = economieParPaquet;
               
               const isExpanded = expandedItems.has(ligne.id);
               const allDeals = hasDeal ? getAllDealsForIngredient(ligne.nom) : [];
@@ -905,17 +946,17 @@ export default function ListeEpicerie() {
                         <span>
                           {ligne.quantite} {ligne.unite || "unité"}
                         </span>
-                        {hasDeal && deal.price !== null ? (
+                        {hasDeal && prixDealComplet !== null ? (
                           <div className="flex items-center gap-2">
-                            {deal.originalPrice && (
+                            {prixProduitComplet > 0 && prixProduitComplet > prixDealComplet && (
                               <span className="text-xs text-gray-400 dark:text-gray-500 line-through">
-                                {deal.originalPrice.toFixed(2)}$
+                                {prixProduitComplet.toFixed(2)}$
                               </span>
                             )}
                             <div className="flex flex-col items-end">
                               <span className="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400">
                                 <DollarSign className="w-3 h-3" />
-                                {deal.price.toFixed(2)}$
+                                {prixDealComplet.toFixed(2)}$
                                 <span className="text-xs font-normal text-gray-500">
                                   (prix du produit)
                                 </span>
@@ -933,15 +974,26 @@ export default function ListeEpicerie() {
                             )}
                           </div>
                         ) : (() => {
-                          // Afficher le prix de l'item (paquet/unité) en gris pour les items pas en rabais
-                          // Le prix est pour le paquet/unité complet, pas multiplié par la quantité
-                          const prixItem = ingredientPrices[ligne.id];
-                          if (prixItem !== undefined && prixItem > 0) {
+                          // 🎯 LOGIQUE SAAS PRO: Afficher le prix du PRODUIT COMPLET
+                          // On ne peut pas acheter des portions à l'épicerie, on doit acheter le produit complet
+                          //
+                          // IMPORTANT: On ignore ligne.prixEstime et ingredientPrices car ils peuvent contenir
+                          // des prix ajustés de l'ancienne logique. On utilise toujours le fallback.
+                          
+                          let prixProduitComplet = 0;
+                          
+                          // Utiliser le fallback (prix du produit complet)
+                          const fallback = getFallbackPrice(ligne.nom);
+                          if (fallback) {
+                            prixProduitComplet = fallback.prix;
+                          }
+                          
+                          if (prixProduitComplet > 0) {
                             return (
                               <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
                                 <DollarSign className="w-3 h-3" />
                                 <span className="text-sm">
-                                  {prixItem.toFixed(2)}$
+                                  {prixProduitComplet.toFixed(2)}$
                                 </span>
                               </span>
                             );

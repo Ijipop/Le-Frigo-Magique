@@ -75,7 +75,29 @@ export async function isPremium(
         };
       }
     } catch (error) {
-      // Table Subscription n'existe pas encore, continuer avec stripeSubId uniquement
+      // Vérifier si l'erreur est spécifiquement liée à la table qui n'existe pas
+      // Erreurs Prisma typiques pour table manquante :
+      // - P2021: Table does not exist
+      // - P2025: Record not found (mais ce n'est pas une erreur de table manquante)
+      // - Erreurs SQL avec "does not exist" ou "table" dans le message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.code;
+      
+      // Vérifier si c'est une erreur de table manquante
+      const isTableMissingError = 
+        errorCode === "P2021" || // Prisma: Table does not exist
+        errorMessage.toLowerCase().includes("does not exist") ||
+        errorMessage.toLowerCase().includes("table") && errorMessage.toLowerCase().includes("not found") ||
+        errorMessage.toLowerCase().includes("relation") && errorMessage.toLowerCase().includes("does not exist");
+      
+      if (!isTableMissingError) {
+        // Ce n'est pas une erreur de table manquante, re-lancer l'erreur
+        // Cela peut être une erreur de connexion, timeout, etc.
+        throw error;
+      }
+      
+      // Si c'est vraiment une erreur de table manquante, continuer avec le fallback
+      // (pour la transition - à améliorer avec les webhooks Stripe)
     }
 
     // Si pas de table Subscription, vérifier juste la présence de stripeSubId
