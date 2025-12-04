@@ -154,6 +154,20 @@ export default function AccordionEpiceries({
     onTotalChange(total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMerchants, dealsResults?.results.length, listeItems.length]);
+  
+  // 🎯 NOUVEAU: Écouter les demandes de recalcul forcé (quand on revient sur l'onglet)
+  useEffect(() => {
+    const handleForceRecalculate = () => {
+      const total = calculateGlobalTotal();
+      onTotalChange(total);
+    };
+    
+    window.addEventListener("force-recalculate-total", handleForceRecalculate);
+    return () => {
+      window.removeEventListener("force-recalculate-total", handleForceRecalculate);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMerchants, dealsResults?.results.length, listeItems.length]);
 
   return (
     <div className="space-y-3">

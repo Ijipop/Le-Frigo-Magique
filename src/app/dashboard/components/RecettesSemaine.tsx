@@ -114,6 +114,48 @@ export default function RecettesSemaine() {
     
     window.addEventListener("epicerie-total-updated", handleEpicerieTotalUpdate);
     
+    // 🎯 NOUVEAU: Charger le total depuis localStorage au montage si des épiceries sont sélectionnées
+    // Cela permet de récupérer le total même si on change d'onglet
+    const loadSavedTotal = () => {
+      try {
+        const savedMerchants = localStorage.getItem("selectedMerchants");
+        if (savedMerchants) {
+          const merchants = JSON.parse(savedMerchants) as string[];
+          if (merchants.length > 0) {
+            // Si des épiceries sont sélectionnées, déclencher un événement pour recalculer le total
+            // Le composant ListeEpicerie écoutera cet événement et mettra à jour le total
+            window.dispatchEvent(new CustomEvent("recalculate-epicerie-total"));
+          } else {
+            // Aucune épicerie sélectionnée, mettre le total à 0
+            setDynamicEpicerieTotal(0);
+          }
+        } else {
+          // Aucune épicerie sauvegardée, mettre le total à 0
+          setDynamicEpicerieTotal(0);
+        }
+      } catch (e) {
+        console.error("Erreur lors du chargement du total sauvegardé:", e);
+        setDynamicEpicerieTotal(0);
+      }
+    };
+    
+    loadSavedTotal();
+    
+    // 🎯 NOUVEAU: Écouter aussi les changements de visibilité de la page pour recalculer le total
+    // Cela permet de mettre à jour le total quand on revient sur l'onglet
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // La page est visible, recalculer le total
+        loadSavedTotal();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    
     return () => {
       window.removeEventListener("recettes-semaine-updated", handleUpdate);
       window.removeEventListener("liste-epicerie-updated", handleUpdate);

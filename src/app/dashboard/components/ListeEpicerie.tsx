@@ -142,6 +142,40 @@ export default function ListeEpicerie() {
     // Dispatcher un événement pour mettre à jour le budget dans RecettesSemaine
     window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: finalTotal } }));
   };
+  
+  // 🎯 NOUVEAU: Écouter les demandes de recalcul du total (quand on revient sur l'onglet)
+  useEffect(() => {
+    const handleRecalculate = () => {
+      // Si des épiceries sont sélectionnées et qu'on a des deals, recalculer le total
+      if (selectedMerchants.size > 0 && dealsResults && dealsResults.results.length > 0) {
+        // Le total sera recalculé automatiquement par AccordionEpiceries via onTotalChange
+        // On déclenche juste un événement pour forcer le recalcul
+        const event = new CustomEvent("force-recalculate-total");
+        window.dispatchEvent(event);
+      } else if (selectedMerchants.size === 0) {
+        // Aucune épicerie sélectionnée, mettre le total à 0
+        setDynamicTotal(0);
+        window.dispatchEvent(new CustomEvent("epicerie-total-updated", { detail: { total: 0 } }));
+      }
+    };
+    
+    window.addEventListener("recalculate-epicerie-total", handleRecalculate);
+    
+    // Écouter aussi les changements de visibilité de la page pour recalculer le total
+    const handleVisibilityChange = () => {
+      if (!document.hidden && selectedMerchants.size > 0 && dealsResults && dealsResults.results.length > 0) {
+        // La page est visible et des épiceries sont sélectionnées, recalculer le total
+        handleRecalculate();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener("recalculate-epicerie-total", handleRecalculate);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [selectedMerchants, dealsResults]);
 
   const [formData, setFormData] = useState({
     nom: "",
