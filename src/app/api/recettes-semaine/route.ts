@@ -66,17 +66,17 @@ export async function GET() {
     console.log(`✅ [API GET] ${recettes.length} recette(s) trouvée(s)`);
 
     // Calculer le coût réel pour chaque recette basé sur les ingrédients liés
+    // 🎯 LOGIQUE SAAS PRO: Utiliser le prix du produit complet (fallback) pour chaque ingrédient
+    const { getFallbackPrice } = await import("../../../../lib/utils/priceFallback");
+    
     const recettesAvecCoutReel = recettes.map(recette => {
       // Calculer le coût réel depuis les ingrédients liés
       const coutReel = recette.ligneListes.reduce((total, ligne) => {
-        // Si prixEstime existe, l'utiliser (c'est déjà le prix total pour la quantité)
-        if (ligne.prixEstime !== null && ligne.prixEstime !== undefined && ligne.prixEstime > 0) {
-          return total + ligne.prixEstime;
-        }
-        // Si pas de prix estimé, utiliser une estimation basée sur la quantité
-        // Estimation conservatrice : 2$ par unité si pas de prix
-        const quantite = ligne.quantite || 1;
-        return total + (2.0 * quantite);
+        // Ignorer ligne.prixEstime car il peut contenir des prix ajustés de l'ancienne logique
+        // Utiliser toujours le fallback (prix du produit complet)
+        const fallback = getFallbackPrice(ligne.nom);
+        const prixProduitComplet = fallback?.prix || 2.00;
+        return total + prixProduitComplet;
       }, 0);
 
       return {

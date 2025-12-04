@@ -24,23 +24,23 @@ export interface FallbackPrice {
  */
 const FALLBACK_PRICES: Record<string, Record<string, number>> = {
   viande: {
-    poulet: 10.99,
-    "poulet entier": 10.99,
-    "poulet haché": 12.99,
-    "cuisses de poulet": 8.99,
-    "poitrines de poulet": 14.99,
-    boeuf: 12.99,
-    "bœuf": 12.99,
-    "steak haché": 9.49,
-    "bœuf haché": 9.49,
-    porc: 9.99,
-    "côtelettes de porc": 11.99,
-    "jambon": 6.99,
-    agneau: 15.99,
-    veau: 16.99,
-    saucisse: 6.99,
-    bacon: 7.99,
-    default: 11.50, // Prix moyen pour viande non spécifiée
+    poulet: 12.99, // Prix moyen pour un poulet entier (~1.5-2kg)
+    "poulet entier": 12.99,
+    "poulet haché": 14.99, // Prix pour 500g-1kg
+    "cuisses de poulet": 9.99, // Prix pour un paquet (~1kg)
+    "poitrines de poulet": 16.99, // Prix pour un paquet (~600g-1kg)
+    boeuf: 15.99, // Prix moyen pour 1kg (augmentation 2024)
+    "bœuf": 15.99,
+    "steak haché": 11.99, // Prix pour 500g-1kg
+    "bœuf haché": 11.99,
+    porc: 11.99, // Prix moyen pour 1kg
+    "côtelettes de porc": 13.99, // Prix pour un paquet
+    "jambon": 7.99, // Prix pour un paquet (~200-300g)
+    agneau: 18.99, // Prix moyen pour 1kg
+    veau: 19.99, // Prix moyen pour 1kg
+    saucisse: 7.99, // Prix pour un paquet (~400-500g)
+    bacon: 8.99, // Prix pour un paquet (~375g, 12-14 tranches)
+    default: 13.00, // Prix moyen pour viande non spécifiée
   },
   poisson: {
     saumon: 14.99,
@@ -63,95 +63,95 @@ const FALLBACK_PRICES: Record<string, Record<string, number>> = {
     default: 13.00,
   },
   pates: {
-    pates: 2.29,
-    pâtes: 2.29,
-    spaghetti: 2.29,
-    "pâtes spaghetti": 2.29,
-    penne: 2.49,
-    "pâtes penne": 2.49,
-    riz: 3.99,
-    "riz blanc": 3.99,
-    "riz brun": 4.49,
-    quinoa: 7.99,
-    couscous: 4.99,
-    orzo: 3.99,
-    default: 3.50,
+    pates: 2.99, // Prix pour un paquet (500g)
+    pâtes: 2.99,
+    spaghetti: 2.99,
+    "pâtes spaghetti": 2.99,
+    penne: 3.49,
+    "pâtes penne": 3.49,
+    riz: 4.99, // Prix pour un sac (1-2kg)
+    "riz blanc": 4.99,
+    "riz brun": 5.99,
+    quinoa: 8.99, // Prix pour un sac (500g-1kg)
+    couscous: 5.99, // Prix pour un paquet (500g)
+    orzo: 4.49,
+    default: 4.00,
   },
   legumes: {
-    tomates: 2.99,
-    tomate: 2.99,
-    "tomates cerises": 4.99,
-    carottes: 0.89,
-    carotte: 0.89,
-    poivrons: 1.49,
-    poivron: 1.49,
-    "poivron rouge": 1.99,
-    "poivron vert": 1.49,
-    "poivron jaune": 1.99,
-    oignons: 1.29,
-    oignon: 1.29,
-    "oignons verts": 1.99,
-    "oignons rouges": 1.49,
-    "pommes de terre": 1.99,
-    "patates": 1.99,
-    "patates douces": 2.49,
-    laitue: 1.99,
-    salade: 1.99,
-    "laitue romaine": 2.49,
-    "légumes verts": 2.49,
-    brocoli: 2.99,
-    choufleur: 2.99,
-    courgette: 1.99,
-    courgettes: 1.99,
-    aubergine: 2.49,
-    champignons: 3.99,
-    champignon: 3.99,
-    "champignons portobello": 4.99,
-    "champignons shiitake": 5.99,
-    "légumes congelés": 3.49,
-    "haricots verts": 2.99,
-    "haricots jaunes": 2.99,
-    "asperges": 4.99,
-    "épinards": 2.99,
-    "épinards frais": 3.49,
-    "chou": 1.99,
-    "chou rouge": 2.49,
-    "chou frisé": 3.99,
-    "céleri": 1.99,
-    "concombre": 1.49,
-    "radis": 1.99,
-    "navet": 1.99,
-    "panais": 2.49,
-    default: 2.50,
+    tomates: 3.49, // Prix pour un paquet (~1kg ou 4-6 tomates)
+    tomate: 3.49,
+    "tomates cerises": 5.99, // Prix pour un panier (~500g)
+    carottes: 2.49, // Prix d'un sac de carottes (3 lb) - ajusté 2024
+    carotte: 2.49,
+    poivrons: 2.99, // Prix pour un paquet de 3-4 poivrons
+    poivron: 2.99,
+    "poivron rouge": 3.49,
+    "poivron vert": 2.99,
+    "poivron jaune": 3.49,
+    oignons: 1.99, // Prix pour un sac (~2-3 lb)
+    oignon: 1.99,
+    "oignons verts": 2.49, // Prix pour un bouquet
+    "oignons rouges": 2.49,
+    "pommes de terre": 2.99, // Prix pour un sac (5-10 lb)
+    "patates": 2.99,
+    "patates douces": 3.99, // Prix pour un sac (~2-3 lb)
+    laitue: 2.49, // Prix pour une tête
+    salade: 2.49,
+    "laitue romaine": 2.99,
+    "légumes verts": 3.49,
+    brocoli: 3.49, // Prix pour un bouquet
+    choufleur: 3.99, // Prix pour une tête
+    courgette: 2.49, // Prix pour 2-3 courgettes
+    courgettes: 2.49,
+    aubergine: 2.99, // Prix pour 1-2 aubergines
+    champignons: 4.49, // Prix pour un paquet (~250-300g)
+    champignon: 4.49,
+    "champignons portobello": 5.99,
+    "champignons shiitake": 6.99,
+    "légumes congelés": 3.99, // Prix pour un sac (~500g-1kg)
+    "haricots verts": 3.49, // Prix pour un paquet (~300-400g)
+    "haricots jaunes": 3.49,
+    "asperges": 5.99, // Prix pour un bouquet (~250-300g)
+    "épinards": 3.49, // Prix pour un sac (~250-300g)
+    "épinards frais": 3.99,
+    "chou": 2.49, // Prix pour une tête
+    "chou rouge": 2.99,
+    "chou frisé": 4.49,
+    "céleri": 2.49, // Prix pour un bouquet
+    "concombre": 1.99, // Prix pour 2-3 concombres
+    "radis": 2.49, // Prix pour un bouquet
+    "navet": 2.49, // Prix pour un sac
+    "panais": 3.49,
+    default: 3.00,
   },
   fruits: {
-    pommes: 1.99,
-    pomme: 1.99,
-    bananes: 1.49,
-    banane: 1.49,
-    oranges: 2.99,
-    orange: 2.99,
-    fraises: 4.99,
-    fraise: 4.99,
-    bleuets: 5.99,
-    framboises: 5.99,
-    "fruits congelés": 4.99,
-    default: 3.50,
+    pommes: 7.99, // Prix d'un paquet de 12 pommes (ajusté 2024)
+    pomme: 7.99,
+    bananes: 1.99, // Prix d'un régime de bananes (~1.5-2kg)
+    banane: 1.99,
+    oranges: 5.99, // Prix d'un sac d'oranges (~2-3kg)
+    orange: 5.99,
+    fraises: 5.99, // Prix pour un panier (~500g-1lb)
+    fraise: 5.99,
+    bleuets: 6.99, // Prix pour un panier (~250-300g)
+    framboises: 6.99, // Prix pour un panier (~125-150g)
+    "fruits congelés": 5.99, // Prix pour un sac (~500g-1kg)
+    default: 4.00,
   },
   laitier: {
-    lait: 5.29,
-    "lait 2%": 5.29,
-    fromage: 6.99,
-    "fromage râpé": 5.99,
-    beurre: 5.99,
-    "beurre non salé": 5.99,
-    yogourt: 4.99,
-    "yaourt": 4.99,
-    crème: 3.99,
-    "crème 35%": 3.99,
-    "crème sure": 3.49,
-    "fromage cottage": 4.99,
-    default: 5.00,
+    lait: 5.99, // Prix pour 2L (ajusté 2024)
+    "lait 2%": 5.99,
+    fromage: 7.99, // Prix pour un bloc (~200-300g)
+    "fromage râpé": 6.99, // Prix pour un sac (~200g)
+    beurre: 6.49, // Prix pour un bloc (454g)
+    "beurre non salé": 6.49,
+    yogourt: 5.99, // Prix pour un paquet de 4-6 unités
+    "yaourt": 5.99,
+    crème: 4.49, // Prix pour 500ml
+    "crème 35%": 4.49,
+    "crème sure": 3.99, // Prix pour 500ml
+    "fromage cottage": 5.49, // Prix pour un contenant (~500g)
+    default: 5.50,
   },
   epices: {
     sel: 1.99,
@@ -164,55 +164,55 @@ const FALLBACK_PRICES: Record<string, Record<string, number>> = {
     default: 2.50,
   },
   conserves: {
-    "tomates en conserve": 1.99,
-    "haricots": 1.49,
-    "haricots rouges": 1.49,
-    "haricots noirs": 1.49,
-    "haricots blancs": 1.49,
-    "boîte de haricots blancs": 1.49,
-    "maïs en conserve": 1.29,
-    thon: 2.99,
-    "thon en conserve": 2.99,
-    default: 1.75,
+    "tomates en conserve": 2.49, // Prix pour une boîte (398ml)
+    "haricots": 1.99, // Prix pour une boîte (398ml)
+    "haricots rouges": 1.99,
+    "haricots noirs": 1.99,
+    "haricots blancs": 1.99,
+    "boîte de haricots blancs": 1.99,
+    "maïs en conserve": 1.99, // Prix pour une boîte (341ml)
+    thon: 3.49, // Prix pour une boîte (170g)
+    "thon en conserve": 3.49,
+    default: 2.00,
   },
   autres: {
-    huile: 5.99,
-    "huile d'olive": 8.99,
-    "huile de canola": 4.99,
-    "huile végétale": 4.99,
-    vinaigre: 3.99,
-    "vinaigre balsamique": 6.99,
-    "vinaigre de cidre": 4.99,
-    farine: 4.99,
-    "farine tout usage": 4.99,
-    "farine de blé": 4.99,
-    sucre: 3.99,
-    "sucre blanc": 3.99,
-    "sucre brun": 4.49,
-    "cassonade": 4.49,
-    oeufs: 4.79,
-    "œufs": 4.79,
-    "douzaine d'œufs": 4.79,
-    pain: 2.99,
-    "pain tranché": 2.99,
-    "pain de blé entier": 3.49,
-    "pain blanc": 2.99,
-    "pain multigrain": 3.99,
-    "naan": 3.99,
-    "tortillas": 3.49,
-    "pita": 2.99,
-    "mozzarella": 6.99,
-    "fromage mozzarella": 6.99,
-    "sauce tomate": 1.99,
-    "pâte de tomate": 1.49,
-    "bouillon": 1.99,
-    "bouillon de poulet": 1.99,
-    "bouillon de légumes": 1.99,
-    "levure": 4.99,
-    "levure sèche": 4.99,
-    "bicarbonate de soude": 1.99,
-    "poudre à pâte": 2.99,
-    default: 4.50,
+    huile: 6.99, // Prix pour 1L (augmentation 2024: +10.2%)
+    "huile d'olive": 10.99, // Prix pour 500ml-1L
+    "huile de canola": 5.99, // Prix pour 1L
+    "huile végétale": 5.99,
+    vinaigre: 4.49, // Prix pour 500ml-1L
+    "vinaigre balsamique": 7.99, // Prix pour 250-500ml
+    "vinaigre de cidre": 5.49, // Prix pour 500ml-1L
+    farine: 5.99, // Prix pour 2.5kg
+    "farine tout usage": 5.99,
+    "farine de blé": 5.99,
+    sucre: 4.49, // Prix pour 2kg
+    "sucre blanc": 4.49,
+    "sucre brun": 4.99, // Prix pour 1kg
+    "cassonade": 4.99,
+    oeufs: 5.49, // Prix pour une douzaine (augmentation 2024: +5.8%)
+    "œufs": 5.49,
+    "douzaine d'œufs": 5.49,
+    pain: 3.49, // Prix pour une miche (~600g)
+    "pain tranché": 3.49,
+    "pain de blé entier": 3.99,
+    "pain blanc": 3.49,
+    "pain multigrain": 4.49,
+    "naan": 4.49, // Prix pour un paquet de 4-6
+    "tortillas": 3.99, // Prix pour un paquet de 8-10
+    "pita": 3.49, // Prix pour un paquet de 6-8
+    "mozzarella": 7.99, // Prix pour un bloc (~300-400g)
+    "fromage mozzarella": 7.99,
+    "sauce tomate": 2.49, // Prix pour une boîte (398ml)
+    "pâte de tomate": 1.99, // Prix pour une boîte (156ml)
+    "bouillon": 2.49, // Prix pour un cube ou 1L
+    "bouillon de poulet": 2.49,
+    "bouillon de légumes": 2.49,
+    "levure": 5.49, // Prix pour un paquet
+    "levure sèche": 5.49,
+    "bicarbonate de soude": 2.49, // Prix pour une boîte
+    "poudre à pâte": 3.49, // Prix pour une boîte
+    default: 5.00,
   },
 };
 
