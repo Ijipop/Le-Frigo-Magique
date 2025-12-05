@@ -91,9 +91,37 @@ export function matchIngredients(
     }
     
     // Cas 2: Le produit commence par le mot recherché suivi d'un espace
-    // Ex: "mais" → "mais en conserve" ✅ mais PAS "mais soufflé" ❌
+    // Pour un mot simple, être ULTRA-STRICT : accepter seulement si le reste ne contient PAS de mots de composition
+    // Ex: "beurre" → "beurre selection" ✅ mais PAS "beurre d'arachide" ❌
     if (normalized2.startsWith(searchWord + ' ')) {
       const afterWord = normalized2.substring(searchWord.length + 1).trim();
+      
+      // 🎯 LISTE GÉNÉRALE DE MOTS DE COMPOSITION : exclure TOUS les produits composés
+      // Ces mots indiquent que le produit est un composé (ex: "beurre D'ARACHIDE", "beurre DE POMME")
+      const compositionWords = [
+        // Prépositions + ingrédients (français)
+        'darachide', 'd arachide', 'de arachide', 'de cacahuete', 'de cacahuète',
+        'damande', 'd amande', 'de amande', 'de noix', 'de noisette', 'de sesame',
+        'de coco', 'de cocos', 'de pomme', 'de pommes', 'de poire', 'de poires',
+        'de citron', 'de citrons', 'de fraise', 'de fraises', 'de banane', 'de bananes',
+        'de canne', 'de cannes', 'de soja', 'de sojas', 'davoine', 'd avoine', 'de avoine',
+        // Prépositions + ingrédients (anglais)
+        'peanut', 'almond', 'nut', 'hazelnut', 'coconut', 'apple', 'apples',
+        'cane', 'soy', 'oat', 'sesame',
+        // Mots composés directs
+        'butter', 'spread', 'tartinade',
+      ];
+      
+      // Vérifier si le reste contient un mot de composition
+      const hasCompositionWord = compositionWords.some(compWord => {
+        // Vérifier si le mot de composition est présent comme mot complet ou partie d'un mot
+        const compRegex = new RegExp(`\\b${compWord}\\b|${compWord}`, 'i');
+        return compRegex.test(afterWord);
+      });
+      
+      if (hasCompositionWord) {
+        return false; // Produit composé, pas l'ingrédient simple
+      }
       
       // Vérifier les exclusions spécifiques AVANT d'accepter
       // Exclusions pour "mais" / "maïs" : exclure "mais soufflé", "popcorn", etc.
@@ -114,6 +142,23 @@ export function matchIngredients(
         }
       }
       
+      // Exclusions spécifiques pour "beurre" : exclure TOUS les beurres composés
+      if (searchWord === 'beurre' || searchWord === 'butter') {
+        const excludedButterPatterns = [
+          'darachide', 'd arachide', 'de arachide', 'peanut',
+          'damande', 'd amande', 'de amande', 'almond',
+          'de noix', 'de noisette', 'nut', 'hazelnut',
+          'de coco', 'coconut',
+          'de sesame', 'sesame', 'tahini',
+          'de pomme', 'de pommes', 'apple', 'apples',
+          'de poire', 'de poires', 'pear', 'pears',
+          'butter', 'spread', 'tartinade', // Mots qui indiquent un beurre composé
+        ];
+        if (excludedButterPatterns.some(pattern => afterWord.includes(pattern))) {
+          return false; // Beurre composé, pas du beurre simple
+        }
+      }
+      
       // Liste générale de mots qui indiquent un produit transformé/composé à exclure
       const transformationWords = ['souffle', 'soufflé', 'popcorn', 'eclate', 'éclaté', 
                                    'cuit', 'grille', 'grillé', 'frit', 'frite', 'seche', 'séché',
@@ -125,7 +170,7 @@ export function matchIngredients(
         return false; // Produit transformé, pas l'ingrédient simple
       }
       
-      return true; // ✅ Le produit commence par le mot recherché et n'est pas transformé
+      return true; // ✅ Le produit commence par le mot recherché et n'est pas un composé/transformé
     }
     
     // Cas 3: Le produit contient le mot mais il faut vérifier qu'il n'est pas dans un composé
@@ -190,13 +235,25 @@ export function matchIngredients(
       }
       
       // Exclusions pour "beurre" : exclure "beurre d'arachide", "beurre de cacahuète", etc.
+      // Pour un mot simple, être ULTRA-STRICT : exclure TOUS les beurres composés
       if (searchWord === 'beurre' || searchWord === 'butter') {
-        const excludedPatterns = ['beurre darachide', 'peanut butter', 'beurre de cacahuete', 'beurre de cacahuète',
-                                  'beurre damande', 'almond butter', 'beurre de noix', 'nut butter',
-                                  'beurre de coco', 'coconut butter', 'beurre de sesame', 'tahini'];
-        const isExcluded = excludedPatterns.some(pattern => normalized2.includes(pattern));
-        if (isExcluded && !normalized2.startsWith('beurre') && !normalized2.startsWith('butter')) {
-          return false; // Exclure les beurres de noix sauf si "beurre" est le premier mot
+        const excludedButterPatterns = [
+          'darachide', 'd arachide', 'de arachide', 'peanut butter', 'peanut',
+          'damande', 'd amande', 'de amande', 'almond butter', 'almond',
+          'de noix', 'de noisette', 'nut butter', 'nut', 'hazelnut',
+          'de coco', 'coconut butter', 'coconut',
+          'de sesame', 'sesame', 'tahini',
+          'de pomme', 'de pommes', 'apple butter', 'apple', 'apples',
+          'de poire', 'de poires', 'pear butter', 'pear', 'pears',
+          'butter', 'spread', 'tartinade', // Mots qui indiquent un beurre composé
+        ];
+        const isExcluded = excludedButterPatterns.some(pattern => {
+          // Vérifier si le pattern est présent dans le nom du produit
+          const patternRegex = new RegExp(`\\b${pattern}\\b|${pattern}`, 'i');
+          return patternRegex.test(normalized2);
+        });
+        if (isExcluded) {
+          return false; // Beurre composé, pas du beurre simple
         }
       }
       
@@ -650,7 +707,16 @@ export function findMatchesInFlyerItems(
           'lait': ['yogourt', 'yogurt', 'coco', 'coconut', 'soja', 'soy', 'amande', 'almond', 'avoine', 'oat'],
           'pain': ['fruit', 'fruits', 'cassave', 'cassava', 'pita', 'naan', 'tortilla'],
           'fromage': ['cream', 'creme', 'cheese'],
-          'beurre': ['peanut', 'arachide', 'cacahuete'],
+          'beurre': [
+            // Beurres de noix et composés
+            'peanut', 'arachide', 'cacahuete', 'cacahuète', 'almond', 'amande', 'damande', 'd amande', 'de amande',
+            'nut', 'noix', 'noisette', 'hazelnut', 'coconut', 'coco', 'de coco',
+            'sesame', 'tahini', 'de sesame',
+            // Beurres de fruits
+            'apple', 'pomme', 'de pomme', 'de pommes', 'pear', 'poire', 'de poire', 'de poires',
+            // Mots indicateurs de composé
+            'butter', 'spread', 'tartinade', 'darachide', 'd arachide', 'de arachide',
+          ],
           'parfum': ['crevette', 'crevettes', 'shrimp', 'poisson', 'fish', 'fruits de mer', 'seafood'],
           'pates': ['pate', 'spread', 'tuna', 'salmon', 'pink', 'chicken', 'liver', 'foie'],
           'pâtes': ['pate', 'spread', 'tuna', 'salmon', 'pink', 'chicken', 'liver', 'foie'],
