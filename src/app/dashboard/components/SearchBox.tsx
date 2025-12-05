@@ -43,6 +43,16 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
       { id: "casher", label: "Casher", icon: "✡️" },
       { id: "pescetarien", label: "Pescétarien", icon: "🐟" },
     ],
+    cuisines: [
+      { id: "japonais", label: "Japonais", icon: "🍣" },
+      { id: "mexicain", label: "Mexicain", icon: "🌮" },
+      { id: "indien", label: "Indien", icon: "🍛" },
+      { id: "italien", label: "Italien", icon: "🍝" },
+      { id: "chinois", label: "Chinois", icon: "🥢" },
+      { id: "thailandais", label: "Thaïlandais", icon: "🍜" },
+      { id: "mediterraneen", label: "Méditerranéen", icon: "🫒" },
+      { id: "marocain", label: "Marocain", icon: "🥘" },
+    ],
     caracteristiques: [
       { id: "rapide", label: "Rapide (< 30 min)", icon: "⚡" },
       { id: "economique", label: "Économique", icon: "💰" },
@@ -317,6 +327,37 @@ export default function SearchBox({ onSearch, searching, loading }: SearchBoxPro
           <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Régime alimentaire</p>
           <div className="flex flex-wrap gap-2">
             {filterCategories.regime.map((filter) => (
+              <motion.button
+                key={filter.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  const newFilters = new Set(selectedFilters);
+                  if (newFilters.has(filter.id)) {
+                    newFilters.delete(filter.id);
+                  } else {
+                    newFilters.add(filter.id);
+                  }
+                  setSelectedFilters(newFilters);
+                }}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  selectedFilters.has(filter.id)
+                    ? "bg-orange-500 text-white shadow-md"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                <span>{filter.icon}</span>
+                {filter.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cuisines internationales */}
+        <div className="mb-3">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Cuisines internationales</p>
+          <div className="flex flex-wrap gap-2">
+            {filterCategories.cuisines.map((filter) => (
               <motion.button
                 key={filter.id}
                 whileHover={{ scale: 1.05 }}
