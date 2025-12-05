@@ -840,7 +840,24 @@ async function addSpoonacularIngredientsToListeEpicerie(
       if (existingLine) {
         // L'ingrédient existe déjà : mettre à jour la quantité
         // Si les unités sont compatibles, additionner les quantités
+        // Normaliser les unités pour la comparaison (enlever espaces, accents, etc.)
+        const normalizeUnit = (unit: string | null | undefined): string => {
+          if (!unit) return "";
+          return unit
+            .toLowerCase()
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // Enlever accents
+            .replace(/\s+/g, " ") // Normaliser espaces
+            .replace(/[^a-z0-9\s]/g, "") // Enlever caractères spéciaux sauf espaces
+            .trim();
+        };
+        
+        const normalizedExistingUnit = normalizeUnit(existingLine.unite);
+        const normalizedIngredientUnit = normalizeUnit(ingredient.unit);
+        
         const canMerge = !existingLine.unite || !ingredient.unit || 
+                        normalizedExistingUnit === normalizedIngredientUnit ||
                         existingLine.unite === ingredient.unit ||
                         (existingLine.unite.toLowerCase() === ingredient.unit.toLowerCase());
         
@@ -855,10 +872,15 @@ async function addSpoonacularIngredientsToListeEpicerie(
             },
           });
           console.log(`🔄 [API] "${ingredient.name}" mis à jour : ${existingLine.quantite} + ${ingredient.amount} = ${newQuantity} ${existingLine.unite || ingredient.unit || ''}`);
+          
+          // 🎯 IMPORTANT : Mettre à jour le tableau en mémoire pour que les prochaines itérations voient les changements
+          existingLine.quantite = newQuantity;
+          existingLine.unite = existingLine.unite || ingredient.unit || null;
+          
           updatedCount++;
         } else {
           // Unités incompatibles : créer une nouvelle ligne
-          await prisma.ligneListe.create({
+          const newLine = await prisma.ligneListe.create({
             data: {
               listeId: liste.id,
               recetteSemaineId: recetteSemaineId || null,
@@ -868,12 +890,19 @@ async function addSpoonacularIngredientsToListeEpicerie(
               prixEstime: null,
             },
           });
+          
+          // 🎯 Ajouter la nouvelle ligne au tableau pour que les prochaines itérations la voient
+          normalizedExistingLines.push({
+            ...newLine,
+            normalizedName: normalizedIngredientName,
+          });
+          
           console.log(`✅ [API] "${ingredient.name}" ajouté (unité différente: ${ingredient.unit} vs ${existingLine.unite})`);
           addedCount++;
         }
       } else {
         // L'ingrédient n'existe pas : créer une nouvelle ligne
-        await prisma.ligneListe.create({
+        const newLine = await prisma.ligneListe.create({
           data: {
             listeId: liste.id,
             recetteSemaineId: recetteSemaineId || null,
@@ -883,6 +912,13 @@ async function addSpoonacularIngredientsToListeEpicerie(
             prixEstime: null,
           },
         });
+        
+        // 🎯 Ajouter la nouvelle ligne au tableau pour que les prochaines itérations la voient
+        normalizedExistingLines.push({
+          ...newLine,
+          normalizedName: normalizedIngredientName,
+        });
+        
         console.log(`✅ [API] "${ingredient.name}" ajouté à la liste d'épicerie`);
         addedCount++;
       }
